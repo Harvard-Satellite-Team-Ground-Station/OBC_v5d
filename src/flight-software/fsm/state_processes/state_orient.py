@@ -3,11 +3,12 @@
 
 
 # ++++++++++++++ Imports/Installs ++++++++++++++ #
+import json
 import board
 import asyncio
 import digitalio
 from lib.pysquared.hardware.digitalio import initialize_pin
-
+from lib.pysquared.config.config import Config
 
 # ++++++++++++++ Functions: Helper ++++++++++++++ #
 class StateOrient:
@@ -18,6 +19,7 @@ class StateOrient:
         self.dp_obj = dp_obj
         self.logger = logger
         self.running = False
+        self.config = Config("config.json")
         self.done = False
     
     async def run(self):
@@ -27,6 +29,12 @@ class StateOrient:
         self.running = True
         while self.running:
             await asyncio.sleep(2)
+
+            with open(self.config.config_file, "r") as f:
+                json_data = json.loads(f.read())
+                # if json_data["orient_payload"] == True:
+            
+
             # TODO: we need to decide which springs to run current through
             # this should be based on the sun sensor
             # potential idea: use solar_power_monitor: PowerMonitorProto = INA219Manager(logger, i2c1, 0x44)

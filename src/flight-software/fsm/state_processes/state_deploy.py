@@ -20,7 +20,7 @@ class StateDeploy:
                                               digitalio.Direction.OUTPUT, 
                                               False)
         self.burnwire1_fire = initialize_pin(logger, 
-                                             board.FIRE_DEPLOY1_B, 
+                                             board.FIRE_DEPLOY2_B,
                                              digitalio.Direction.OUTPUT, 
                                              False)
         self.burnwire = BurnwireManager(self.logger,

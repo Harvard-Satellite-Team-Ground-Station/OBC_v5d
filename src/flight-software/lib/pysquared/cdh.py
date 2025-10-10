@@ -32,6 +32,7 @@ class CommandDataHandler:
 
     command_reset: str = "reset"
     command_change_radio_modulation: str = "change_radio_modulation"
+    command_orient_payload: str = "orient_payload" # NEW!
     command_send_joke: str = "send_joke"
 
     def __init__(
@@ -112,6 +113,21 @@ class CommandDataHandler:
                 self.change_radio_modulation(args)
             elif cmd == self.command_send_joke:
                 self.send_joke()
+            elif cmd == self.command_orient_payload:
+                if args[0] == "true" or args[0] == "True":
+                    self._config.orient_payload = True
+                    self._packet_manager.send(
+                        f"orient payload set to True.  Starting rotation...".encode("utf-8")
+                    )
+                elif args[0] == "false" or args[0] == "False":
+                    self._config.orient_payload = False
+                    self._packet_manager.send(
+                        f"orient payload set to False.  Not rotating.".encode("utf-8")
+                    )
+                else:
+                    self._packet_manager.send(
+                        f"arg command wrong, needs to be string 'True' or 'False''".encode("utf-8")
+                    )
             else:
                 self._log.warning("Unknown command received", cmd=cmd)
                 self._packet_manager.send(
