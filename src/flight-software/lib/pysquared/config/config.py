@@ -86,7 +86,8 @@ class Config:
         self.jokes: list[str] = json_data["jokes"]
         self.debug: bool = json_data["debug"]
         self.heating: bool = json_data["heating"]
-        self.orient_payload: bool = json_data["orient_payload"] # NEW!
+        self.orient_payload_setting: int = json_data["orient_payload_setting"] # NEW!
+        self.orient_payload_periodic_time: int = json_data["orient_payload_periodic_time"] # NEW!
         self.normal_temp: int = json_data["normal_temp"]
         self.normal_battery_temp: int = json_data["normal_battery_temp"]
         self.normal_micro_temp: int = json_data["normal_micro_temp"]

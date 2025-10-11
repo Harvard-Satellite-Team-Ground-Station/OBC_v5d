@@ -9,7 +9,8 @@
   "detumble_enable_y": true,
   "detumble_enable_z": true,
   "heating": false,
-  "orient_payload": true, // NEW!
+  "orient_payload_setting": 1, // NEW!
+  "orient_payload_periodic_time": 24, // NEW!
   "joke_reply": [
     "Your Mom",
     "Your Mum",

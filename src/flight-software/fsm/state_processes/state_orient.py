@@ -32,7 +32,9 @@ class StateOrient:
 
             with open(self.config.config_file, "r") as f:
                 json_data = json.loads(f.read())
-                # if json_data["orient_payload"] == True:
+                # if json_data["orient_payload_setting"] == 0:
+                # elif json_data["orient_payload_setting"] == 1:
+                # else: # json_data["orient_payload_setting"] == 2
             
 
             # TODO: we need to decide which springs to run current through

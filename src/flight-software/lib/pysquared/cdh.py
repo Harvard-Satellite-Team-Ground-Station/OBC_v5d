@@ -114,19 +114,31 @@ class CommandDataHandler:
             elif cmd == self.command_send_joke:
                 self.send_joke()
             elif cmd == self.command_orient_payload:
-                if args[0] == "true" or args[0] == "True":
-                    self._config.orient_payload = True
+                if args[0] == "0":
+                    self._config.orient_payload_setting = 0
                     self._packet_manager.send(
-                        f"orient payload set to True.  Starting rotation...".encode("utf-8")
+                        f"orient payload set to 0 (off).  Stopping rotation...".encode("utf-8")
                     )
-                elif args[0] == "false" or args[0] == "False":
-                    self._config.orient_payload = False
+                elif args[0] == "1":
+                    self._config.orient_payload_setting = 1
                     self._packet_manager.send(
-                        f"orient payload set to False.  Not rotating.".encode("utf-8")
+                        f"orient payload set to 1 (on indefinitely).  Starting rotating...".encode("utf-8")
                     )
+                elif args[0] == "2":
+                    try:
+                        num = int(args[1])
+                        self._config.orient_payload_periodic_time = num
+                        self._config.orient_payload_setting = 2
+                        self._packet_manager.send(
+                            f"orient payload set to 2 (on for {num} hours, off for {num} hours).  Starting rotation...".encode("utf-8")
+                        )
+                    except ValueError:
+                        self._packet_manager.send(
+                            f"arg[1] needs to be a string representing period hours (ex: '24' means start 24 hours on, 24 hours off, repeat)'".encode("utf-8")
+                        )
                 else:
                     self._packet_manager.send(
-                        f"arg command wrong, needs to be string 'True' or 'False''".encode("utf-8")
+                        f"arg[0] command wrong, needs to be '0' (off), '1' (on), or '2' (on/off alternate)'".encode("utf-8")
                     )
             else:
                 self._log.warning("Unknown command received", cmd=cmd)
