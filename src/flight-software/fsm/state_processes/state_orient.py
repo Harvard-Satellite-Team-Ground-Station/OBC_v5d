@@ -5,7 +5,7 @@
 import asyncio
 import board
 import numpy as np
-import from lib.pysquared.hardware.light_sensor.manager.veml7700 import VEML7700Manager.get_light
+from lib.pysquared.hardware.light_sensor.manager.veml7700 import VEML7700Manager.get_light
 
 # ++++++++++++++ Functions: Helper ++++++++++++++ #
 class StateOrient:
@@ -62,7 +62,7 @@ class StateOrient:
             net_vec = np.linalg.norm(light_vec[1] + light_vec[2] + light_vec[3] + light_vec[4])
 
 
-            point_vecs = [pos_xvec, neg_xvec, pos_yvec, neg_yvec, np.array([1, 1]), np.array([1, -1]), np.array([-1, 1]), np.array([-1, -1])]
+            point_vecs = [pos_xvec, neg_xvec, pos_yvec, neg_yvec, np.array([1/np.sqrt(2), 1/np.sqrt(2)]), np.array([1/np.sqrt(2), -1/np.sqrt(2)]), np.array([-1/np.sqrt(2), 1/np.sqrt(2)]), np.array([-1/np.sqrt(2), -1/np.sqrt(2)])]
             # find maximum dot product between the
             max_dot_product = -1
             best_direction = 0
