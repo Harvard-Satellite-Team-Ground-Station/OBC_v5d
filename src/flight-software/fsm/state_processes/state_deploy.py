@@ -3,6 +3,7 @@
 
 
 # ++++++++++++++ Imports/Installs ++++++++++++++ #
+import time
 import board # from typings import board
 import asyncio
 import digitalio
@@ -36,11 +37,12 @@ class StateDeploy:
     async def run(self):
         self.running = True
         while self.running:
-            await asyncio.sleep(2)
+            await asyncio.sleep(1)
             # Burn the wire if not already done to release the payload
             if not self.finished_burn:
-                #self.burnwire.burn(self.burn_duration)
-                await asyncio.sleep(2)
+                # TODO: burn wire
+                # self.burnwire.burn(self.burn_duration)
+                await asyncio.sleep(4)
                 self.finished_burn = True
             self.done = True
             

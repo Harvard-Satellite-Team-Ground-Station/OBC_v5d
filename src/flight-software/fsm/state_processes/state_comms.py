@@ -19,8 +19,8 @@ class StateComms:
     async def run(self):
         self._running = True
         while self._running:
-            await asyncio.sleep(2)
-            # NOTE: add some custom data as needed   
+            await asyncio.sleep(5)
+            # TODO: add some custom data as needed   
             # self.radio.send("We're in comms.  Setup is going well.")  
             self.done = True
 

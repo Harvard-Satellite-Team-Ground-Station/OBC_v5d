@@ -43,7 +43,7 @@ logger: Logger = Logger(
 )
 
 dm_obj = DataProcess()
-fsm = FSM(dm_obj, logger, radio=None)
+fsm_obj = FSM(dm_obj, logger, radio=None)
 
 def test_dm_obj():
     try:
@@ -73,7 +73,6 @@ async def test_dm_obj_get_data_updates():
         imu_av_after = dm_obj.data["data_imu_av"][:]
         imu_av_mag_after = dm_obj.data["data_imu_av_magnitude"]
         imu_pos_after = dm_obj.data["data_imu_pos"][:]
-        print("AFTER", imu_av_after)
         mag_vector_after = dm_obj.data["data_magnetometer_vector"]
         if battery_before != battery_after:
             print("\033[92mPASSED\033[0m [test_dm_obj_get_data_updates bp]")
@@ -98,9 +97,51 @@ async def test_dm_obj_get_data_updates():
     except Exception as e:
         print("\033[91mFAILED\033[0m [test_dm_obj_get_data_updates Exception]", e)
 
+def test_fsm_transitions():
+        # Initially, FSM should be in bootup
+        assert(fsm_obj.curr_state_name == "bootup")
+
+        # Simulate bootup done
+        fsm_obj.curr_state_object.done = True
+        fsm_obj.execute_fsm_step()
+        assert fsm_obj.curr_state_name == "detumble", "\033[91mFAILED\033[0m [test_fsm_transitions bootup -> detumble]"
+
+        # Simulate detumble done
+        fsm_obj.curr_state_object.done = True
+        fsm_obj.execute_fsm_step()
+        assert fsm_obj.curr_state_name == "antennas", "\033[91mFAILED\033[0m [test_fsm_transitions detumble -> antennas]"
+
+        # Simulate antennas done
+        fsm_obj.curr_state_object.done = True
+        fsm_obj.execute_fsm_step()
+        assert fsm_obj.curr_state_name == "comms", "\033[91mFAILED\033[0m [test_fsm_transitions antennas -> comms]"
+
+        # Simulate comms done → deploy
+        fsm_obj.curr_state_object.done = True
+        fsm_obj.execute_fsm_step()
+        assert fsm_obj.curr_state_name == "deploy", "\033[91mFAILED\033[0m [test_fsm_transitions comms -> deploy]"
+
+        # Simulate deploy done → orient
+        fsm_obj.curr_state_object.done = True
+        fsm_obj.execute_fsm_step()
+        assert fsm_obj.curr_state_name == "orient", "\033[91mFAILED\033[0m [test_fsm_transitions deploy -> orient]"
+
+        # Simulate orient done → comms
+        fsm_obj.curr_state_object.done = True
+        fsm_obj.execute_fsm_step()
+        assert fsm_obj.curr_state_name == "comms", "\033[91mFAILED\033[0m [test_fsm_transitions orient -> comms]"
+
+        # Simulate comms done → orient
+        fsm_obj.curr_state_object.done = True
+        fsm_obj.execute_fsm_step()
+        assert fsm_obj.curr_state_name == "orient", "\033[91mFAILED\033[0m [test_fsm_transitions comms -> orient]"
+        
+        print("\033[92mPASSED\033[0m [test_fsm_transitions]")
 
 # ========== MAIN FUNCTION ========== #
 
 def test_all():
+    test_fsm_transitions()
     test_dm_obj()
     asyncio.run(test_dm_obj_get_data_updates())
+   

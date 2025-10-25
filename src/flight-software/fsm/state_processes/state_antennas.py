@@ -3,6 +3,7 @@
 
 
 # ++++++++++++++ Imports/Installs ++++++++++++++ #
+import time
 import board
 import asyncio
 import digitalio
@@ -15,6 +16,8 @@ class StateAntennas:
     def __init__(self, dp_obj, logger):
         self.dp_obj = dp_obj
         self.logger = logger
+        """
+        TODO: set proper pins
         self.burnwire_heater = initialize_pin(logger, 
                                               board.FIRE_DEPLOY1_A, 
                                               digitalio.Direction.OUTPUT, 
@@ -26,6 +29,7 @@ class StateAntennas:
         self.burnwire = BurnwireManager(self.logger,
                                         self.burnwire_heater,
                                         self.burnwire1_fire)
+        """
         self.burn_duration = 5
         self.finished_burn = False
         self.running = False
@@ -34,10 +38,12 @@ class StateAntennas:
     async def run(self):
         self.running = True
         while self.running:
-            await asyncio.sleep(2)
+            await asyncio.sleep(1)
             # Burn the wire if not already done to release the antennas
             if not self.finished_burn:
-                self.burnwire.burn(self.burn_duration)
+                # TODO: burn the pin
+                # self.burnwire.burn(self.burn_duration)
+                await asyncio.sleep(4)
                 self.finished_burn = True
             self.done = True
             
