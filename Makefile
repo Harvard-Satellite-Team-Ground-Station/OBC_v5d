@@ -1,5 +1,5 @@
-PYSQUARED_VERSION ?= v2.0.0-alpha-25w34
-PYSQUARED ?= git+https://github.com/proveskit/pysquared@$(PYSQUARED_VERSION)
+PYSQUARED_VERSION ?= v2.0.0-alpha-25w40a
+PYSQUARED ?= git+https://github.com/proveskit/pysquared@$(PYSQUARED_VERSION)\#subdirectory=circuitpython-workspaces/flight-software
 BOARD_MOUNT_POINT ?= ""
 BOARD_TTY_PORT ?= ""
 VERSION ?= $(shell git tag --points-at HEAD --sort=-creatordate < /dev/null | head -n 1)
@@ -107,7 +107,9 @@ define rsync_to_dest
 		exit 1; \
 	fi
 
-	@rsync -avh ./config.json $(2)/version.py $(1)/*.py $(1)/lib --exclude=".*" --exclude='requirements.txt' --exclude='__pycache__' $(2) --delete --times --checksum
+	@rsync -avh ./config.json ./jokes.json $(2)/version.py $(1)/*.py $(1)/lib 	--exclude=".*" --exclude='requirements.txt' --exclude='__pycache__' $(2) --delete --times --checksum
+
+
 endef
 
 ##@ Build Tools
