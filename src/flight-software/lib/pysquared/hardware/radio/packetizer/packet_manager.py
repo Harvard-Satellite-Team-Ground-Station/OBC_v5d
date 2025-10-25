@@ -199,7 +199,16 @@ class PacketManager:
     def send_acknowledgement(self) -> None:
         """Sends an acknowledgment to the radio."""
         self.send(b"ACK")
+        print("sending acknowledgment packet")
         self._logger.debug("Sent acknowledgment packet")
+
+    def get_last_rssi(self) -> int:
+        """Gets the RSSI of the last received packet.
+
+        Returns:
+            The RSSI of the last received packet.
+        """
+        return self._radio.get_rssi()
 
     def _unpack_data(self, packets: list[bytes]) -> bytes:
         """Unpacks a list of packets and reassembles the original data.

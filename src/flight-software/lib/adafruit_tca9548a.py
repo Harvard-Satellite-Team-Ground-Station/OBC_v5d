@@ -30,15 +30,13 @@ Implementation Notes
 """
 
 import time
-
 from micropython import const
 
 try:
     from typing import List
-
-    from busio import I2C
-    from circuitpython_typing import ReadableBuffer, WriteableBuffer
     from typing_extensions import Literal
+    from circuitpython_typing import WriteableBuffer, ReadableBuffer
+    from busio import I2C
 except ImportError:
     pass
 
@@ -59,7 +57,10 @@ class TCA9548A_Channel:
 
     def try_lock(self) -> bool:
         """Pass through for try_lock."""
+        start_time = time.monotonic()
         while not self.tca.i2c.try_lock():
+            if time.monotonic() - start_time > 0.5:  # Timeout after 1 second
+                raise TimeoutError("Unable to lock I2C bus within timeout period.")
             time.sleep(0)
         self.tca.i2c.writeto(self.tca.address, self.channel_switch)
         return True
@@ -82,13 +83,19 @@ class TCA9548A_Channel:
         return self.tca.i2c.writeto(address, buffer, **kwargs)
 
     def writeto_then_readfrom(
-        self, address: int, buffer_out: WriteableBuffer, buffer_in: ReadableBuffer, **kwargs
+        self,
+        address: int,
+        buffer_out: WriteableBuffer,
+        buffer_in: ReadableBuffer,
+        **kwargs
     ):
         """Pass through for writeto_then_readfrom."""
         # In linux, at least, this is a special kernel function call
         if address == self.tca.address:
             raise ValueError("Device address must be different than TCA9548A address.")
-        return self.tca.i2c.writeto_then_readfrom(address, buffer_out, buffer_in, **kwargs)
+        return self.tca.i2c.writeto_then_readfrom(
+            address, buffer_out, buffer_in, **kwargs
+        )
 
     def scan(self) -> List[int]:
         """Perform an I2C Device Scan"""
@@ -106,6 +113,18 @@ class TCA9548A:
     """Class which provides interface to TCA9548A I2C multiplexer."""
 
     def __init__(self, i2c: I2C, address: int = _DEFAULT_ADDRESS) -> None:
+        tries = 0
+        while not i2c.try_lock():
+            if (tries >= 200):
+                raise ValueError("Unable to lock I2C bus.")
+            tries += 1
+            time.sleep(0)
+
+        if address not in i2c.scan():
+            i2c.unlock()
+            raise ValueError(f"No TCA9548A detected at {hex(address)}.")
+        i2c.unlock()
+
         self.i2c = i2c
         self.address = address
         self.channels = [None] * 8

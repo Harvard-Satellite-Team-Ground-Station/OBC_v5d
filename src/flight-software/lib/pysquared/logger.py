@@ -13,6 +13,7 @@ logger.error("This is an error message.", err=Exception("Something went wrong.")
 """
 
 import json
+import os
 import time
 import traceback
 from collections import OrderedDict
@@ -76,6 +77,8 @@ class LogLevel:
 class Logger:
     """Handles logging messages with different severity levels."""
 
+    _log_dir: str | None = None
+
     def __init__(
         self,
         error_counter: Counter,
@@ -86,9 +89,9 @@ class Logger:
         Initializes the Logger instance.
 
         Args:
-            error_counter (Counter): Counter for error occurrences.
-            log_level (int): Initial log level.
-            colorized (bool): Whether to colorize output.
+            error_counter: Counter for error occurrences.
+            log_level: Initial log level.
+            colorized: Whether to colorize output.
         """
         self._error_counter: Counter = error_counter
         self._log_level: int = log_level
@@ -129,8 +132,8 @@ class Logger:
             message (str): The log message.
             **kwargs: Additional key/value pairs to include in the log.
         """
-        now = time.localtime()
-        asctime = f"{now.tm_year}-{now.tm_mon:02d}-{now.tm_mday:02d} {now.tm_hour:02d}:{now.tm_min:02d}:{now.tm_sec:02d}"
+        now = time.localtime()  # type: ignore # PR: https://github.com/adafruit/circuitpython/pull/10603
+        asctime = f"{now.tm_year}-{now.tm_mon:02d}-{now.tm_mday:02d} {now.tm_hour:02d}:{now.tm_min:02d}:{now.tm_sec:02d}"  # type: ignore # PR: https://github.com/adafruit/circuitpython/pull/10603
 
         # case where someone used debug, info, or warning yet also provides an 'err' kwarg with an Exception
         if (
@@ -151,24 +154,19 @@ class Logger:
 
         json_order.update(kwargs)
 
-        try:
-            json_output = json.dumps(json_order)
-        except TypeError as e:
-            json_output = json.dumps(
-                OrderedDict(
-                    [
-                        ("time", asctime),
-                        ("level", "ERROR"),
-                        ("msg", f"Failed to serialize log message: {e}"),
-                    ]
-                ),
-            )
+        json_output = json.dumps(json_order)
 
         if self._can_print_this_level(level_value):
+            if self._log_dir is not None:
+                file = self._log_dir + os.sep + "activity.log"
+                with open(file, "a") as f:
+                    f.write(json_output + "\n")
+
             if self.colorized:
                 json_output = json_output.replace(
                     f'"level": "{level}"', f'"level": "{LogColors[level]}"'
                 )
+
             print(json_output)
 
     def debug(self, message: str, **kwargs: object) -> None:
@@ -235,3 +233,26 @@ class Logger:
             int: The number of errors logged.
         """
         return self._error_counter.get()
+
+    def set_log_dir(self, log_dir: str) -> None:
+        """
+        Sets the log directory for file logging.
+
+        Args:
+            log_dir (str): Directory to save log files.
+
+        Raises:
+            ValueError: If the provided path is not a valid directory.
+        """
+        try:
+            # Octal number 0o040000 is the stat mode indicating the file being stat'd is a directory
+            directory_mode: int = 0o040000
+            st_mode = os.stat(log_dir)[0]
+            if st_mode != directory_mode:
+                raise ValueError(
+                    f"Logging path must be a directory, received {st_mode}."
+                )
+        except OSError as e:
+            raise ValueError("Invalid logging path.") from e
+
+        self._log_dir = log_dir

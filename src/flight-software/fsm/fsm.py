@@ -14,7 +14,7 @@ from fsm.state_processes.state_detumble import StateDetumble
 
 # ++++++++++++++++++++ Class Definition ++++++++++++++++++++ #
 class FSM:
-    def __init__(self, dp_obj, logger, radio):
+    def __init__(self, dp_obj, logger, radio=None):
         self.dp_obj = dp_obj    # object of type DataProcess
         self.logger = logger    # logging status of FSM states
         self.state_objects = {

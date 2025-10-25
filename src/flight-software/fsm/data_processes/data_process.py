@@ -5,6 +5,7 @@
 # ++++++++++++++++++ Imports and Installs ++++++++++++++++++ #
 import time
 import asyncio
+import random
 from lib.pysquared.protos.imu import IMUProto
 from lib.pysquared.protos.magnetometer import MagnetometerProto
 from lib.pysquared.protos.power_monitor import PowerMonitorProto
@@ -55,19 +56,23 @@ class DataProcess():
     async def get_data_bp(self):
         """
         Get data_bp
+        TODO: Replace with actual battery percentage
         """
         while self.running:
             # determine voltage 
-            voltage = self.protos_power_monitor.get_bus_voltage()
+            voltage = 100
+            # voltage = self.protos_power_monitor.get_bus_voltage()
             # convert to battery percentage based on online conversion equations
             if voltage is not None:
-                battery_percentage = 100 * (voltage - 35000)/6000 
+                battery_percentage = random.randint(10,100)
+                # battery_percentage = 100 * (voltage - 35000)/6000 
                 self.data["data_bp"] = battery_percentage
             await asyncio.sleep(1)
 
     async def get_data_imu_av(self):
         """
         Get data_imu_av and data_imu_av_magnitude
+        TODO: Replace with actual gyro data
         """
         while self.running:
             # determine change in time
@@ -75,7 +80,8 @@ class DataProcess():
             dt = now - self.last_imu_time
             self.last_imu_time = now
             # determine angular velocity data
-            accel = self.protos_imu.get_gyro_data()  
+            # accel = self.protos_imu.get_gyro_data()  
+            accel = [random.randint(0,10),random.randint(0,10),random.randint(0,10)]
             if accel is None:
                 await asyncio.sleep(1)
                 return
@@ -90,13 +96,20 @@ class DataProcess():
     async def get_data_magnetometer_vector(self):
         """
         Get magnetometer vector
+        TODO: Replace with actual gyro data
         """
         while self.running:
-            self.data["data_magnetometer_vector"] = self.protos_magnetometer.get_vector()
+            # magnetometer_data = self.protos_magnetometer.get_vector()
+            magnetometer_data = [random.randint(0,10),random.randint(0,10),random.randint(0,10)]
+            self.data["data_magnetometer_vector"] = magnetometer_data
             await asyncio.sleep(1)
 
     async def get_data_position(self):
-        # TODO
+        """
+        Get magnetometer vector
+        TODO: Replace with actual position data
+        """
         while self.running:
-            self.data["data_imu_pos"] = self.data["data_imu_pos"]
+            pos = [random.randint(0,10),random.randint(0,10),random.randint(0,10)]
+            self.data["data_imu_pos"] = pos
             await asyncio.sleep(1)

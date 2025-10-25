@@ -1,7 +1,7 @@
 {
   "battery_voltage": 5.2,
   "critical_battery_voltage": 6.6,
-  "cubesat_name": "HUCSAT", // NEW!
+  "cubesat_name": "HUCSAT",
   "current_draw": 240.5,
   "debug": true,
   "degraded_battery_voltage": 7.0,
@@ -9,8 +9,8 @@
   "detumble_enable_y": true,
   "detumble_enable_z": true,
   "heating": false,
-  "orient_payload_setting": 1, // NEW!
-  "orient_payload_periodic_time": 24, // NEW!
+  "orient_payload_setting": 1,
+  "orient_payload_periodic_time": 24,
   "joke_reply": [
     "Your Mom",
     "Your Mum",

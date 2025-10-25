@@ -25,7 +25,8 @@ class Config:
     Loads configuration from a JSON file, validates values, and provides
     methods to update configuration settings. Supports both temporary (RAM-only)
     and permanent (file-persisted) updates. Delegates radio-related validation
-    and updates to the RadioConfig class.
+    and updates to the RadioConfig class. Jokes are loaded from a separate
+    jokes.json file in the same directory as the config file.
 
     Attributes:
         config_file (str): Path to the configuration JSON file.
@@ -35,7 +36,7 @@ class Config:
         detumble_enable_z (bool): Enable detumbling on Z axis.
         detumble_enable_x (bool): Enable detumbling on X axis.
         detumble_enable_y (bool): Enable detumbling on Y axis.
-        jokes (list[str]): List of jokes for the cubesat.
+        jokes (list[str]): List of jokes for the cubesat (loaded from jokes.json).
         debug (bool): Debug mode flag.
         heating (bool): Heating system enabled flag.
         normal_temp (int): Normal operating temperature.
@@ -46,8 +47,9 @@ class Config:
         critical_battery_voltage (float): Critical battery voltage.
         reboot_time (int): Time before reboot in seconds.
         turbo_clock (bool): Turbo clock enabled flag.
-        super_secret_code (str): Secret code for special operations.
+        super_secret_code (str): Secret code for special operations (deprecated).
         repeat_code (str): Code for repeated operations.
+        hmac_secret (str): Shared secret for HMAC command authentication.
         longest_allowable_sleep_time (int): Maximum allowable sleep time.
         CONFIG_SCHEMA (dict): Validation schema for configuration keys.
 
@@ -68,8 +70,8 @@ class Config:
             config_path (str): Path to the configuration JSON file.
 
         Raises:
-            FileNotFoundError: If the configuration file does not exist.
-            json.JSONDecodeError: If the configuration file is not valid JSON.
+            FileNotFoundError: If the configuration file or jokes.json does not exist.
+            json.JSONDecodeError: If the configuration file or jokes.json is not valid JSON.
         """
 
         self.config_file = config_path
@@ -83,11 +85,25 @@ class Config:
         self.detumble_enable_z: bool = json_data["detumble_enable_z"]
         self.detumble_enable_x: bool = json_data["detumble_enable_x"]
         self.detumble_enable_y: bool = json_data["detumble_enable_y"]
-        self.jokes: list[str] = json_data["jokes"]
+
+        # Load jokes from separate jokes.json file in the same directory
+        # Extract directory from config_path using string operations (CircuitPython compatible)
+        if "/" in config_path:
+            config_dir = "/".join(config_path.split("/")[:-1])
+        else:
+            config_dir = "."
+
+        # Construct jokes path
+        if config_dir == ".":
+            jokes_path = "jokes.json"
+        else:
+            jokes_path = config_dir + "/jokes.json"
+
+        with open(jokes_path, "r") as f:
+            self.jokes: list[str] = json.loads(f.read())
+
         self.debug: bool = json_data["debug"]
         self.heating: bool = json_data["heating"]
-        self.orient_payload_setting: int = json_data["orient_payload_setting"] # NEW!
-        self.orient_payload_periodic_time: int = json_data["orient_payload_periodic_time"] # NEW!
         self.normal_temp: int = json_data["normal_temp"]
         self.normal_battery_temp: int = json_data["normal_battery_temp"]
         self.normal_micro_temp: int = json_data["normal_micro_temp"]
@@ -99,6 +115,7 @@ class Config:
         self.turbo_clock: bool = json_data["turbo_clock"]
         self.super_secret_code: str = json_data["super_secret_code"]
         self.repeat_code: str = json_data["repeat_code"]
+        self.hmac_secret: str = json_data.get("hmac_secret", "default_hmac_secret")
         self.longest_allowable_sleep_time: int = json_data[
             "longest_allowable_sleep_time"
         ]
@@ -107,6 +124,7 @@ class Config:
             "cubesat_name": {"type": str, "min_length": 1, "max_length": 10},
             "super_secret_code": {"type": bytes, "min": 1, "max": 24},
             "repeat_code": {"type": bytes, "min": 1, "max": 4},
+            "hmac_secret": {"type": bytes, "min": 16, "max": 64},
             "normal_charge_current": {"type": float, "min": 0.0, "max": 2000.0},
             "normal_battery_voltage": {"type": float, "min": 6.0, "max": 8.4},
             "degraded_battery_voltage": {"type": float, "min": 5.4, "max": 8.0},

@@ -14,14 +14,14 @@ class StateComms:
         self.logger = logger
         self.running = False
         self.done = True
-        self.radio : RadioProto = radio
+        self.radio = radio
     
     async def run(self):
         self._running = True
         while self._running:
             await asyncio.sleep(2)
             # NOTE: add some custom data as needed   
-            self.radio.send("We're in comms.  Setup is going well.")  
+            # self.radio.send("We're in comms.  Setup is going well.")  
             self.done = True
 
     def stop(self):

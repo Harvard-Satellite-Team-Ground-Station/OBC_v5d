@@ -16,15 +16,10 @@ rfm9x_manager.send(b"Hello world!")
 ```
 """
 
+from adafruit_rfm.rfm9x import RFM9x
+from adafruit_rfm.rfm9xfsk import RFM9xFSK
 from busio import SPI
 from digitalio import DigitalInOut
-
-try:
-    from mocks.adafruit_rfm.rfm9x import RFM9x
-    from mocks.adafruit_rfm.rfm9xfsk import RFM9xFSK
-except ImportError:
-    from adafruit_rfm.rfm9x import RFM9x
-    from adafruit_rfm.rfm9xfsk import RFM9xFSK
 
 from ....config.radio import FSKConfig, LORAConfig, RadioConfig
 from ....logger import Logger

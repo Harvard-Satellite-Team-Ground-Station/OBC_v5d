@@ -23,8 +23,7 @@ from busio import SPI
 from digitalio import DigitalInOut
 from proves_sx1280.sx1280 import SX1280
 
-from pysquared.config.radio import RadioConfig
-
+from ....config.radio import RadioConfig
 from ....logger import Logger
 from ..modulation import LoRa, RadioModulation
 from .base import BaseRadioManager
