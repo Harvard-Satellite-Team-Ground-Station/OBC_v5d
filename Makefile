@@ -140,7 +140,7 @@ CIRCUIT_PYTHON ?= $(TOOLS_DIR)/adafruit-circuitpython-proveskit_rp2350_v5b-en_US
 .PHONY: circuit-python
 circuit-python: $(CIRCUIT_PYTHON) ## Download Circuit Python firmware
 $(CIRCUIT_PYTHON): $(TOOLS_DIR)
-	@test -s $(CIRCUIT_PYTHON) || curl -o $(CIRCUIT_PYTHON) -fsSL https://raw.githubusercontent.com/proveskit/flight_controller_board/main/Firmware/FC_FIRM_v5b_V1.uf2
+	@test -s $(CIRCUIT_PYTHON) || curl -o $(CIRCUIT_PYTHON) -fsSL https://raw.githubusercontent.com/proveskit/flight_controller_board/main/Firmware/FC_FIRM_v5d_V1.uf2
 
 UNAME_S := $(shell uname -s)
 UNAME_M := $(shell uname -m)
