@@ -1,4 +1,4 @@
-PYSQUARED_VERSION ?= v2.0.0-alpha-25w40a
+PYSQUARED_VERSION ?= copilot/fix-7bfb9c49-466e-42db-a6be-dece956d6d8c
 PYSQUARED ?= git+https://github.com/proveskit/pysquared@$(PYSQUARED_VERSION)\#subdirectory=circuitpython-workspaces/flight-software
 BOARD_MOUNT_POINT ?= ""
 BOARD_TTY_PORT ?= ""
@@ -140,7 +140,7 @@ CIRCUIT_PYTHON ?= $(TOOLS_DIR)/adafruit-circuitpython-proveskit_rp2350_v5b-en_US
 .PHONY: circuit-python
 circuit-python: $(CIRCUIT_PYTHON) ## Download Circuit Python firmware
 $(CIRCUIT_PYTHON): $(TOOLS_DIR)
-	@test -s $(CIRCUIT_PYTHON) || curl -o $(CIRCUIT_PYTHON) -fsSL https://raw.githubusercontent.com/proveskit/flight_controller_board/main/Firmware/FC_FIRM_v5b_V1.uf2
+	@test -s $(CIRCUIT_PYTHON) || curl -o $(CIRCUIT_PYTHON) -fsSL https://raw.githubusercontent.com/proveskit/flight_controller_board/main/Firmware/FC_FIRM_v5d_V1.uf2
 
 UNAME_S := $(shell uname -s)
 UNAME_M := $(shell uname -m)
