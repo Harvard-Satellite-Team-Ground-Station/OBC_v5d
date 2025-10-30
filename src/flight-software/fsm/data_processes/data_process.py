@@ -5,10 +5,6 @@
 # ++++++++++++++++++ Imports and Installs ++++++++++++++++++ #
 import time
 import asyncio
-import random
-from lib.pysquared.protos.imu import IMUProto
-from lib.pysquared.protos.magnetometer import MagnetometerProto
-from lib.pysquared.protos.power_monitor import PowerMonitorProto
 
 
 # ++++++++++++++++++++ Class Definition ++++++++++++++++++++ #
@@ -17,17 +13,18 @@ class DataProcess():
     Class with functions to grab all the data that we need
     """
 
-    def __init__(self):
-        self.protos_power_monitor = PowerMonitorProto()
-        self.protos_magnetometer = MagnetometerProto()
-        self.protos_imu = IMUProto()
+    def __init__(self, magnetometer, imu, battery_power_monitor):
+        self.protos_power_monitor = battery_power_monitor
+        self.protos_imu = imu
+        self.protos_magnetometer = magnetometer
         self.last_imu_time = time.monotonic()
         self.running = True
         self.data = {
-            "data_bp" : 0.0,                            # battery percentage
+            "data_batt_volt" : 0.0,                     # battery voltage
+            "data_batt_perc" : 0.0,                     # battery percentage
             "data_imu_av" : [0.0,0.0,0.0],              # imu angular velocity [ax, ay, az] in rad/s²
             "data_imu_av_magnitude" : 0.0,              # imu angular velocity magnitude (Euclidian norm aka length of data_imu_av vector)
-            "data_imu_pos" : [0.0,0.0,0.0],             # imu position
+            "data_imu_acc" : [0.0,0.0,0.0],             # imu acceleration [ax, ay, az] in m/s²" : [0.0,0.0,0.0],             # imu position
             "data_magnetometer_vector" : [0.0,0.0,0.0]  # magnetometer vector
         }
 
@@ -47,69 +44,52 @@ class DataProcess():
         Run all the data-gathering functions in an infinite loop.
         """
         await asyncio.gather(
-            self.get_data_bp(),
+            self.get_data_battery(),
             self.get_data_imu_av(),
+            self.get_data_imu_acc(),
             self.get_data_magnetometer_vector(),
-            self.get_data_position(),
         )   
 
-    async def get_data_bp(self):
+    async def get_data_battery(self):
         """
-        Get data_bp
-        TODO: Replace with actual battery percentage
+        Get battery voltage (bv) and battery percentage (bp)
         """
         while self.running:
-            # determine voltage 
-            voltage = 100
-            # voltage = self.protos_power_monitor.get_bus_voltage()
-            # convert to battery percentage based on online conversion equations
-            if voltage is not None:
-                battery_percentage = random.randint(10,100)
-                # battery_percentage = 100 * (voltage - 35000)/6000 
-                self.data["data_bp"] = battery_percentage
+            voltage = self.protos_power_monitor.get_bus_voltage().value
+            battery_percentage = 100 * (voltage - 35000)/6000 
+            self.data["data_batt_volt"] = voltage
+            self.data["data_batt_perc"] = battery_percentage
             await asyncio.sleep(1)
 
     async def get_data_imu_av(self):
         """
         Get data_imu_av and data_imu_av_magnitude
-        TODO: Replace with actual gyro data
         """
         while self.running:
-            # determine change in time
-            now = time.monotonic()
-            dt = now - self.last_imu_time
-            self.last_imu_time = now
-            # determine angular velocity data
-            # accel = self.protos_imu.get_gyro_data()  
-            accel = [random.randint(0,10),random.randint(0,10),random.randint(0,10)]
-            if accel is None:
-                await asyncio.sleep(1)
-                return
-            for i in range(3):
-                self.data["data_imu_av"][i] += accel[i] * dt
+            imu_acc_data = list(self.protos_imu.get_angular_velocity().value)
+            self.data["data_imu_av"] = imu_acc_data
             # compute the magnitude of angular velocity
-            ωx, ωy, ωz = self.data["data_imu_av"]
+            ωx, ωy, ωz = imu_acc_data
             magnitude = (ωx**2 + ωy**2 + ωz**2) ** 0.5
             self.data["data_imu_av_magnitude"] = magnitude
+            await asyncio.sleep(1)
+    
+    async def get_data_imu_acc(self):
+        """
+        Get imu acceleration
+        """
+        while self.running:
+            imu_acc_data = list(self.protos_imu.get_acceleration().value)
+            self.data["data_imu_acc"] = imu_acc_data
             await asyncio.sleep(1)
 
     async def get_data_magnetometer_vector(self):
         """
         Get magnetometer vector
-        TODO: Replace with actual gyro data
         """
         while self.running:
-            # magnetometer_data = self.protos_magnetometer.get_vector()
-            magnetometer_data = [random.randint(0,10),random.randint(0,10),random.randint(0,10)]
+            magnetometer_data = list(self.protos_magnetometer.get_magnetic_field().value)
             self.data["data_magnetometer_vector"] = magnetometer_data
             await asyncio.sleep(1)
 
-    async def get_data_position(self):
-        """
-        Get magnetometer vector
-        TODO: Replace with actual position data
-        """
-        while self.running:
-            pos = [random.randint(0,10),random.randint(0,10),random.randint(0,10)]
-            self.data["data_imu_pos"] = pos
-            await asyncio.sleep(1)
+    
