@@ -62,6 +62,18 @@ magnetometer = LIS2MDLManager(logger, i2c1)
 
 imu = LSM6DSOXManager(logger, i2c1, 0x6B)
 
+burnwire_heater_enable = initialize_pin(
+    logger, board.FIRE_DEPLOY1_A, digitalio.Direction.OUTPUT, False
+)
+
+burnwire1_fire = initialize_pin(
+    logger, board.FIRE_DEPLOY1_B, digitalio.Direction.OUTPUT, False
+)
+
+antenna_deployment = BurnwireManager(
+    logger, burnwire_heater_enable, burnwire1_fire, enable_logic=True
+)
+
 battery_power_monitor: PowerMonitorProto = INA219Manager(logger, i2c0, 0x40)
 
 
@@ -77,7 +89,7 @@ def test_dm_obj_initialization():
     except Exception as e:
             print("\033[91mFAILED:\033[0m [dm_obj test]", e) 
 
-async def test_dm_obj_magnetorquer():
+async def test_dm_obj_magnetometer():
     dm_obj = DataProcess(magnetometer=magnetometer,
                          imu=imu,
                          battery_power_monitor=battery_power_monitor)
@@ -177,7 +189,10 @@ def test_fsm_transitions():
         dm_obj = DataProcess(magnetometer=magnetometer,
                          imu=imu,
                          battery_power_monitor=battery_power_monitor)
-        fsm_obj = FSM(dm_obj, logger, radio=None)
+        fsm_obj = FSM(dm_obj,
+                      logger,
+                      antenna_deployment=antenna_deployment,
+                      radio=None)
 
         # Initially, FSM should be in bootup
         assert(fsm_obj.curr_state_name == "bootup")
@@ -219,13 +234,25 @@ def test_fsm_transitions():
         
         print("\033[92mPASSED\033[0m [test_fsm_transitions]")
 
+def test_fsm_antenna_burnwire():
+    choice = input("Would you like to try the burnwire test (Y/N)?: ").strip().lower()
+    if choice == "y":
+        print("Burning for 5 seconds....")
+        antenna_deployment.burn(5)
+        print("Finished burning.")
+        return input("Did the burnwire get hot? (Y/N): ").strip().upper()
+    return "N/A"
+
 # ========== MAIN FUNCTION ========== #
 
 def test_all():
     # comment out tests you don't want to run
+    # fsm tests
     test_fsm_transitions()
+    test_fsm_antenna_burnwire()
+    # dm_obj tests
     test_dm_obj_initialization()
     asyncio.run(test_dm_obj_get_data_updates())
-    asyncio.run(test_dm_obj_magnetorquer())
+    asyncio.run(test_dm_obj_magnetometer())
     asyncio.run(test_dm_obj_imu())
     asyncio.run(test_dm_obj_battery())
