@@ -33,15 +33,28 @@ from lib.pysquared.rtc.manager.microcontroller import MicrocontrollerManager
 from lib.pysquared.watchdog import Watchdog
 from version import __version__
 from fsm.data_processes.data_process import DataProcess
+from fsm.BeaconFSM import BeaconFSM
 from fsm.fsm import FSM
 
 
 # ----- Initializations ----- #
-rtc = MicrocontrollerManager()
-
 logger: Logger = Logger(
     error_counter=Counter(0),
     colorized=False,
+)
+
+config: Config = Config("config.json")
+
+# manually set the pin high to allow mcp to be detected
+GPIO_RESET = (
+    initialize_pin(logger, board.GPIO_EXPANDER_RESET, digitalio.Direction.OUTPUT, True),
+)
+
+i2c1 = initialize_i2c_bus(
+    logger,
+    board.SCL1,
+    board.SDA1,
+    100000,
 )
 
 i2c0 = initialize_i2c_bus(
@@ -51,12 +64,29 @@ i2c0 = initialize_i2c_bus(
     100000,
 )
 
-i2c1 = initialize_i2c_bus(
+spi0 = _spi_init(
     logger,
-    board.SCL1,
-    board.SDA1,
-    100000,
+    board.SPI0_SCK,
+    board.SPI0_MOSI,
+    board.SPI0_MISO,
 )
+
+spi1 = _spi_init(
+    logger,
+    board.SPI1_SCK,
+    board.SPI1_MOSI,
+    board.SPI1_MISO,
+)
+
+mcp = MCP23017(i2c1)
+
+SPI0_CS0 = initialize_pin(logger, board.SPI0_CS0, digitalio.Direction.OUTPUT, True)
+
+SPI1_CS0 = initialize_pin(logger, board.SPI1_CS0, digitalio.Direction.OUTPUT, True)
+
+RF2_IO0 = mcp.get_pin(6)
+
+rtc = MicrocontrollerManager()
 
 magnetometer = LIS2MDLManager(logger, i2c1)
 
@@ -75,6 +105,43 @@ antenna_deployment = BurnwireManager(
 )
 
 battery_power_monitor: PowerMonitorProto = INA219Manager(logger, i2c0, 0x40)
+
+uhf_radio = RFM9xManager(
+    logger,
+    config.radio,
+    spi0,
+    SPI0_CS0,
+    initialize_pin(logger, board.RF1_RST, digitalio.Direction.OUTPUT, True),
+)
+
+uhf_packet_manager = PacketManager(
+    logger,
+    uhf_radio,
+    config.radio.license,
+    Counter(2),
+    0.2,
+)
+
+sband_radio = SX1280Manager(
+    logger,
+    config.radio,
+    spi1,
+    SPI1_CS0,
+    initialize_pin(logger, board.RF2_RST, digitalio.Direction.OUTPUT, True),
+    RF2_IO0,
+    2.4,
+    initialize_pin(logger, board.RF2_TX_EN, digitalio.Direction.OUTPUT, False),
+    initialize_pin(logger, board.RF2_RX_EN, digitalio.Direction.OUTPUT, False),
+)
+
+beacon_fsm = BeaconFSM(
+    None, # will be fsm_obj soon!
+    logger,
+    config.cubesat_name,
+    uhf_packet_manager,
+    time.monotonic(),
+    imu,
+)
 
 
 # ----- Test Functions ----- #
@@ -192,10 +259,13 @@ def test_fsm_transitions():
         fsm_obj = FSM(dm_obj,
                       logger,
                       antenna_deployment=antenna_deployment,
-                      radio=None)
+                      beacon_fsm=beacon_fsm,
+                      uhf_packet_manager=uhf_packet_manager)
+        beacon_fsm.fsm_obj = fsm_obj
 
         # Initially, FSM should be in bootup
         assert(fsm_obj.curr_state_name == "bootup")
+        # print(beacon_fsm._build_state()) # make sure this has correct values for FSM
 
         # Simulate bootup done
         fsm_obj.curr_state_object.done = True
@@ -211,6 +281,7 @@ def test_fsm_transitions():
         fsm_obj.curr_state_object.done = True
         fsm_obj.execute_fsm_step()
         assert fsm_obj.curr_state_name == "comms", "\033[91mFAILED\033[0m [test_fsm_transitions antennas -> comms]"
+        # print(beacon_fsm._build_state()) # make sure this has correct values for FSM
 
         # Simulate comms done → deploy
         fsm_obj.curr_state_object.done = True
@@ -236,6 +307,15 @@ def test_fsm_transitions():
 
 def test_fsm_antenna_burnwire():
     choice = input("Would you like to try the burnwire test (Y/N)?: ").strip().lower()
+    if choice == "y":
+        print("Burning for 5 seconds....")
+        antenna_deployment.burn(5)
+        print("Finished burning.")
+        return input("Did the burnwire get hot? (Y/N): ").strip().upper()
+    return "N/A"
+
+def test_fsm_comms_beacon():
+    choice = input("Would you like to try the comms beacon test (Y/N)?: ").strip().lower()
     if choice == "y":
         print("Burning for 5 seconds....")
         antenna_deployment.burn(5)

@@ -4,24 +4,28 @@
 
 # ++++++++++++++ Imports/Installs ++++++++++++++ #
 import asyncio
-from lib.pysquared.protos.radio import RadioProto
+from fsm.BeaconFSM import BeaconFSM
+from lib.pysquared.hardware.radio.packetizer.packet_manager import PacketManager
 
 
 # ++++++++++++++ Functions: Helper ++++++++++++++ #
 class StateComms:
-    def __init__(self, dp_obj, logger, radio):
+    def __init__(self, dp_obj, logger, beacon_fsm, uhf_packet_manager):
         self.dp_obj = dp_obj
         self.logger = logger
         self.running = False
         self.done = True
-        self.radio = radio
+        self.beacon_fsm:BeaconFSM = beacon_fsm
+        self.uhf_packet_manager:PacketManager = uhf_packet_manager
     
     async def run(self):
         self._running = True
+        # TODO: uncomment
+        # self.uhf_packet_manager.send("Beginning comms.".encode("utf-8"))  
         while self._running:
-            await asyncio.sleep(5)
-            # TODO: add some custom data as needed   
-            # self.radio.send("We're in comms.  Setup is going well.")  
+            await asyncio.sleep(5)  
+            # TODO: uncomment
+            # self.beacon.send() # send additional data besides just the radio string
             self.done = True
 
     def stop(self):

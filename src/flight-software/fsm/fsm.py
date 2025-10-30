@@ -14,7 +14,7 @@ from fsm.state_processes.state_detumble import StateDetumble
 
 # ++++++++++++++++++++ Class Definition ++++++++++++++++++++ #
 class FSM:
-    def __init__(self, dp_obj, logger, antenna_deployment, radio=None):
+    def __init__(self, dp_obj, logger, antenna_deployment, beacon_fsm, uhf_packet_manager):
         self.dp_obj = dp_obj    # object of type DataProcess
         self.logger = logger    # logging status of FSM states
         self.antenna_deployment = antenna_deployment
@@ -22,7 +22,7 @@ class FSM:
             "bootup"    : StateBootup(dp_obj, logger),
             "detumble"  : StateDetumble(dp_obj, logger),
             "antennas"  : StateAntennas(dp_obj, logger, antenna_deployment),
-            "comms"     : StateComms(dp_obj, logger, radio),
+            "comms"     : StateComms(dp_obj, logger, beacon_fsm, uhf_packet_manager),
             "deploy"    : StateDeploy(dp_obj, logger),
             "orient"    : StateOrient(dp_obj, logger),
         }
