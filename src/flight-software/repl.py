@@ -143,6 +143,12 @@ beacon_fsm = BeaconFSM(
     imu,
 )
 
+# Light Sensors
+tca = TCA9548A(i2c0, address=int(0x77))
+RX0_OUTPUT = initialize_pin(logger, board.RX0, digitalio.Direction.OUTPUT, False)
+RX1_OUTPUT = initialize_pin(logger, board.RX1, digitalio.Direction.OUTPUT, False)
+TX0_OUTPUT = initialize_pin(logger, board.TX0, digitalio.Direction.OUTPUT, False)
+TX1_OUTPUT = initialize_pin(logger, board.TX1, digitalio.Direction.OUTPUT, False)
 
 # ----- Test Functions ----- #
 def test_dm_obj_initialization():
@@ -260,7 +266,8 @@ def test_fsm_transitions():
                       logger,
                       antenna_deployment=antenna_deployment,
                       beacon_fsm=beacon_fsm,
-                      uhf_packet_manager=uhf_packet_manager)
+                      uhf_packet_manager=uhf_packet_manager,
+                      tca=tca, rx0=RX0_OUTPUT, rx1=RX1_OUTPUT, tx0=TX0_OUTPUT, tx1=TX1_OUTPUT)
         beacon_fsm.fsm_obj = fsm_obj
 
         # Initially, FSM should be in bootup
