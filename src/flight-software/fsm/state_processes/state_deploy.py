@@ -3,45 +3,33 @@
 
 
 # ++++++++++++++ Imports/Installs ++++++++++++++ #
-import time
-import board # from typings import board
 import asyncio
-import digitalio
-from lib.pysquared.hardware.digitalio import initialize_pin
-from lib.pysquared.hardware.burnwire.manager.burnwire import BurnwireManager
 
 
 # ++++++++++++++ Functions: Helper ++++++++++++++ #
 class StateDeploy:
-    def __init__(self, dp_obj, logger):
+    def __init__(self, dp_obj, logger, deployment_switch):
+        """
+        Initialize the class object
+        """
         self.dp_obj = dp_obj
         self.logger = logger
-        """
-        self.burnwire_heater = initialize_pin(logger, 
-                                              board.FIRE_DEPLOY1_A, 
-                                              digitalio.Direction.OUTPUT, 
-                                              False)
-        self.burnwire1_fire = initialize_pin(logger, 
-                                             board.FIRE_DEPLOY1_B,
-                                             digitalio.Direction.OUTPUT, 
-                                             False)
-        self.burnwire = BurnwireManager(self.logger,
-                                        self.burnwire_heater,
-                                        self.burnwire1_fire)
-        """
+        self.deployment_switch = deployment_switch
         self.burn_duration = 5
         self.finished_burn = False
         self.running = False
         self.done = False
     
     async def run(self):
+        """
+        Run the deployment sequence asynchronously
+        """
         self.running = True
         while self.running:
             await asyncio.sleep(1)
-            # Burn the wire if not already done to release the payload
+            # Burn the wire if not already done to release the antennas
             if not self.finished_burn:
-                # TODO: burn wire
-                # self.burnwire.burn(self.burn_duration)
+                self.deployment_switch.burn(5)
                 await asyncio.sleep(4)
                 self.finished_burn = True
             self.done = True

@@ -19,9 +19,9 @@ class ExtendedBeacon(Beacon):
         state = super()._build_state()
         if self.fsm_obj is not None:
             state["FSM"] = {
-            "fsm_state": str(self.fsm_obj.curr_state_name),
-            "fsm_payload_deployed_already": str(self.fsm_obj.payload_deployed_already),
-            "fsm_antennas_deployed_already": str(self.fsm_obj.antennas_deployed_already)
+            "fsm_current_state": str(self.fsm_obj.curr_state_name),
+            "fsm_payload_deployed": str(self.fsm_obj.payload_deployed),
+            "fsm_antennas_deployed": str(self.fsm_obj.antennas_deployed)
             }
         else:
             state["FSM"] = {}

@@ -269,17 +269,14 @@ def test_fsm_transitions():
                          imu=imu,
                          battery_power_monitor=battery_power_monitor)
         fsm_obj = FSM(dm_obj,
-                      logger,
-                      config,
-                      antenna_deployment=antenna_deployment,
-                      beacon_fsm=beacon_fsm,
-                      uhf_packet_manager=uhf_packet_manager,
-                      tca=tca, rx0=RX0_OUTPUT, rx1=RX1_OUTPUT, tx0=TX0_OUTPUT, tx1=TX1_OUTPUT)
+                logger,
+                config,
+                deployment_switch=antenna_deployment,
+                tca=tca, rx0=RX0_OUTPUT, rx1=RX1_OUTPUT, tx0=TX0_OUTPUT, tx1=TX1_OUTPUT)
         beacon_fsm.fsm_obj = fsm_obj
 
         # Initially, FSM should be in bootup
         assert(fsm_obj.curr_state_name == "bootup")
-        # print(beacon_fsm._build_state()) # make sure this has correct values for FSM
 
         # Simulate bootup done
         fsm_obj.curr_state_object.done = True
@@ -289,43 +286,24 @@ def test_fsm_transitions():
         # Simulate detumble done
         fsm_obj.curr_state_object.done = True
         fsm_obj.execute_fsm_step()
-        assert fsm_obj.curr_state_name == "antennas", "\033[91mFAILED\033[0m [test_fsm_transitions detumble -> antennas]"
+        assert fsm_obj.curr_state_name == "deploy", "\033[91mFAILED\033[0m [test_fsm_transitions detumble -> deploy]"
 
-        # Simulate antennas done
-        fsm_obj.curr_state_object.done = True
-        fsm_obj.execute_fsm_step()
-        assert fsm_obj.curr_state_name == "comms", "\033[91mFAILED\033[0m [test_fsm_transitions antennas -> comms]"
-        # print(beacon_fsm._build_state()) # make sure this has correct values for FSM
-
-        # Simulate comms done → deploy
-        fsm_obj.curr_state_object.done = True
-        fsm_obj.execute_fsm_step()
-        assert fsm_obj.curr_state_name == "deploy", "\033[91mFAILED\033[0m [test_fsm_transitions comms -> deploy]"
-
-        # Simulate deploy done → orient
+        # Simulate deploy done
         fsm_obj.curr_state_object.done = True
         fsm_obj.execute_fsm_step()
         assert fsm_obj.curr_state_name == "orient", "\033[91mFAILED\033[0m [test_fsm_transitions deploy -> orient]"
 
-        # Simulate orient done → comms
-        fsm_obj.curr_state_object.done = True
-        fsm_obj.execute_fsm_step()
-        assert fsm_obj.curr_state_name == "comms", "\033[91mFAILED\033[0m [test_fsm_transitions orient -> comms]"
-
-        # Simulate comms done → orient
-        fsm_obj.curr_state_object.done = True
-        fsm_obj.execute_fsm_step()
-        assert fsm_obj.curr_state_name == "orient", "\033[91mFAILED\033[0m [test_fsm_transitions comms -> orient]"
-        
         # Make sure to cleanup to keep effects isolated!
         if fsm_obj.curr_state_run_asyncio_task is not None:
             fsm_obj.curr_state_object.stop()
             fsm_obj.curr_state_run_asyncio_task.cancel()
         print("\033[92mPASSED\033[0m [test_fsm_transitions]")
 
-def test_fsm_antenna_burnwire():
+def test_fsm_deploy_burnwire():
     choice = input("Would you like to try the burnwire test (Y/N)?: ").strip().lower()
     if choice == "y":
+        input("Get ready to test fire deploy 1A, press enter when ready.").strip().upper()
+        time.sleep(3)
         print("Burning for 5 seconds....")
         antenna_deployment.burn(5)
         print("Finished burning.")
@@ -373,9 +351,7 @@ def test_fsm_orient_config_change():
         fsm_obj = FSM(dm_obj,
                 logger,
                 config,
-                antenna_deployment=antenna_deployment,
-                beacon_fsm=beacon_fsm,
-                uhf_packet_manager=uhf_packet_manager,
+                deployment_switch=antenna_deployment,
                 tca=tca, rx0=RX0_OUTPUT, rx1=RX1_OUTPUT, tx0=TX0_OUTPUT, tx1=TX1_OUTPUT)
         
         fsm_obj.set_state("orient")
@@ -413,9 +389,7 @@ def test_fsm_orient_command():
         fsm_obj = FSM(dm_obj,
                 logger,
                 config,
-                antenna_deployment=antenna_deployment,
-                beacon_fsm=beacon_fsm,
-                uhf_packet_manager=uhf_packet_manager,
+                deployment_switch=antenna_deployment,
                 tca=tca, rx0=RX0_OUTPUT, rx1=RX1_OUTPUT, tx0=TX0_OUTPUT, tx1=TX1_OUTPUT)
         fsm_obj.set_state("orient")
         print(fsm_obj.curr_state_object.orient_payload_setting)
@@ -434,11 +408,11 @@ def test_fsm_orient_command():
 def test_all():
     # comment out tests you don't want to run
     # fsm tests
-    test_fsm_transitions()
-    test_fsm_antenna_burnwire()
-    test_fsm_orient_current()
-    test_fsm_orient_config_change()
-    test_fsm_orient_command()
+    test_fsm_transitions()              # TESTED
+    test_fsm_deploy_burnwire()          # TESTED - do deploy aux 1 top one (or bottom) and GND in upper right
+    test_fsm_orient_current()           # TESTED - do RX0, RX1, TX0, TX1 and GND in upper right
+    test_fsm_orient_config_change()     # TESTED
+    test_fsm_orient_command()           # READY TO TEST
     # dm_obj tests
     test_dm_obj_initialization()
     asyncio.run(test_dm_obj_get_data_updates())

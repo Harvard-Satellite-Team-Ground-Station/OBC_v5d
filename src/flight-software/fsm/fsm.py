@@ -4,42 +4,37 @@
 
 # ++++++++++++++++++ Imports and Installs ++++++++++++++++++ #
 import asyncio
-from fsm.state_processes.state_comms import StateComms
 from fsm.state_processes.state_deploy import StateDeploy
 from fsm.state_processes.state_bootup import StateBootup
 from fsm.state_processes.state_orient import StateOrient
-from fsm.state_processes.state_antennas import StateAntennas
 from fsm.state_processes.state_detumble import StateDetumble
 
 
 # ++++++++++++++++++++ Class Definition ++++++++++++++++++++ #
 class FSM:
-    def __init__(self, dp_obj, logger, config, antenna_deployment,
-                 beacon_fsm,
-                 uhf_packet_manager,
+    def __init__(self, dp_obj, logger, config, deployment_switch,
                  tca, rx0, rx1, tx0, tx1):
         self.dp_obj = dp_obj    # object of type DataProcess
         self.logger = logger    # logging status of FSM states
-        self.antenna_deployment = antenna_deployment
+        self.deployment_switch = deployment_switch
         self.state_objects = {
             "bootup"    : StateBootup(dp_obj, logger),
             "detumble"  : StateDetumble(dp_obj, logger),
-            "antennas"  : StateAntennas(dp_obj, logger, antenna_deployment),
-            "comms"     : StateComms(dp_obj, logger, beacon_fsm, uhf_packet_manager),
-            "deploy"    : StateDeploy(dp_obj, logger),
+            "deploy"    : StateDeploy(dp_obj, logger, deployment_switch),
             "orient"    : StateOrient(dp_obj, logger, config, tca, rx0, rx1, tx0, tx1),
         }
         self.curr_state_name = "bootup"
         self.curr_state_object = self.state_objects["bootup"]
         self.curr_state_run_asyncio_task = None
-        self.payload_deployed_already = False
-        self.antennas_deployed_already = False
+        self.payload_deployed = False
+        self.antennas_deployed = False
     
     def set_state(self, new_state_name):
         """
         This function is called when we switch states from execute_fsm()
         """
         # Stop current state's background task
+        # OK that orient may be in the future be stopped by detumble
         if self.curr_state_run_asyncio_task is not None:
             self.curr_state_object.stop()
             self.curr_state_run_asyncio_task.cancel()
@@ -70,40 +65,19 @@ class FSM:
         if self.dp_obj.data["data_imu_av_magnitude"] > 1:
             # Don't wait for other state to be done, shut it off immediately
             self.set_state("detumble")
+            return
 
-        # Detumble → Antennas
+        # Detumble → Deploy
         if self.curr_state_name == "detumble" and self.curr_state_object.is_done():
-            if not self.antennas_deployed_already:
-                self.antennas_deployed_already = True
-                self.set_state("antennas")
-            else:
-                self.set_state("comms")
-            return
-
-        # Antennas → Comms
-        if self.curr_state_name == "antennas" and self.curr_state_object.is_done():
-            self.set_state("comms")
-            return
-        
-        # TODO: need to write out orient process
-            # question for orient: what pins do we read to sense light?
-
-        # Comms → Deploy or Orient
-        if self.curr_state_name == "comms" and self.curr_state_object.is_done():
-            if not self.payload_deployed_already:
-                self.payload_deployed_already = True
-                self.set_state("deploy")
-            else:
+            if self.payload_deployed:
                 self.set_state("orient")
+            else:
+                self.payload_deployed = True
+                self.antennas_deployed = False
+                self.set_state("deploy")
             return
 
-        # Deploy → Orient Payload
+        # Deploy → Orient
         if self.curr_state_name == "deploy" and self.curr_state_object.is_done():
             self.set_state("orient")
             return
-
-        # Orient Payload → Comms
-        if self.curr_state_name == "orient" and self.curr_state_object.is_done():
-            self.set_state("comms")
-            return
-        
