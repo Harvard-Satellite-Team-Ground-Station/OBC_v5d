@@ -14,7 +14,7 @@ from fsm.state_processes.state_detumble import StateDetumble
 
 # ++++++++++++++++++++ Class Definition ++++++++++++++++++++ #
 class FSM:
-    def __init__(self, dp_obj, logger, antenna_deployment,
+    def __init__(self, dp_obj, logger, config, antenna_deployment,
                  beacon_fsm,
                  uhf_packet_manager,
                  tca, rx0, rx1, tx0, tx1):
@@ -27,14 +27,14 @@ class FSM:
             "antennas"  : StateAntennas(dp_obj, logger, antenna_deployment),
             "comms"     : StateComms(dp_obj, logger, beacon_fsm, uhf_packet_manager),
             "deploy"    : StateDeploy(dp_obj, logger),
-            "orient"    : StateOrient(dp_obj, logger, tca, rx0, rx1, tx0, tx1),
+            "orient"    : StateOrient(dp_obj, logger, config, tca, rx0, rx1, tx0, tx1),
         }
         self.curr_state_name = "bootup"
         self.curr_state_object = self.state_objects["bootup"]
         self.curr_state_run_asyncio_task = None
         self.payload_deployed_already = False
         self.antennas_deployed_already = False
-
+    
     def set_state(self, new_state_name):
         """
         This function is called when we switch states from execute_fsm()

@@ -34,6 +34,8 @@ from lib.pysquared.watchdog import Watchdog
 from version import __version__
 from fsm.data_processes.data_process import DataProcess
 from fsm.ExtendedBeacon import ExtendedBeacon
+from fsm.ExtendedCDH import ExtendedCommandDataHandler
+from fsm.ExtendedConfig import ExtendedConfig
 from fsm.fsm import FSM
 
 
@@ -43,7 +45,8 @@ logger: Logger = Logger(
     colorized=False,
 )
 
-config: Config = Config("config.json")
+config: ExtendedConfig = ExtendedConfig("config.json")
+jokes_config: JokesConfig = JokesConfig("jokes.json")
 
 # manually set the pin high to allow mcp to be detected
 GPIO_RESET = (
@@ -149,6 +152,9 @@ RX0_OUTPUT = initialize_pin(logger, board.RX0, digitalio.Direction.OUTPUT, False
 RX1_OUTPUT = initialize_pin(logger, board.RX1, digitalio.Direction.OUTPUT, False)
 TX0_OUTPUT = initialize_pin(logger, board.TX0, digitalio.Direction.OUTPUT, False)
 TX1_OUTPUT = initialize_pin(logger, board.TX1, digitalio.Direction.OUTPUT, False)
+
+# CDH
+cdh = ExtendedCommandDataHandler(logger, config, uhf_packet_manager, jokes_config)
 
 # ----- Test Functions ----- #
 def test_dm_obj_initialization():
@@ -264,6 +270,7 @@ def test_fsm_transitions():
                          battery_power_monitor=battery_power_monitor)
         fsm_obj = FSM(dm_obj,
                       logger,
+                      config,
                       antenna_deployment=antenna_deployment,
                       beacon_fsm=beacon_fsm,
                       uhf_packet_manager=uhf_packet_manager,
@@ -365,6 +372,70 @@ def test_fsm_comms_beacon():
         return input("Did the burnwire get hot? (Y/N): ").strip().upper()
     return "N/A"
 
+def test_fsm_orient_config_change():
+    choice = input("Would you like to try the orient config change test (Y/N)?: ").strip().lower()
+    if choice == "y":
+        dm_obj = DataProcess(magnetometer=magnetometer,
+                imu=imu,
+                battery_power_monitor=battery_power_monitor)
+        fsm_obj = FSM(dm_obj,
+                logger,
+                config,
+                antenna_deployment=antenna_deployment,
+                beacon_fsm=beacon_fsm,
+                uhf_packet_manager=uhf_packet_manager,
+                tca=tca, rx0=RX0_OUTPUT, rx1=RX1_OUTPUT, tx0=TX0_OUTPUT, tx1=TX1_OUTPUT)
+        
+        fsm_obj.curr_state_name == "orient"
+        fsm_obj.set_state("orient")
+
+        print(fsm_obj.curr_state_object.orient_payload_setting)
+        print(fsm_obj.curr_state_object.orient_payload_periodic_time)
+        time.sleep(1)
+        
+        config.update_config("orient_payload_setting", 0, temporary=True)
+        print(fsm_obj.curr_state_object.orient_payload_setting)
+        print(fsm_obj.curr_state_object.orient_payload_periodic_time)
+        time.sleep(1)
+        
+        config.update_config("orient_payload_setting", 2, temporary=True)
+        print(fsm_obj.curr_state_object.orient_payload_setting)
+        print(fsm_obj.curr_state_object.orient_payload_periodic_time)
+        time.sleep(1)
+
+        config.update_config("orient_payload_periodic_time", 12, temporary=True)
+        print(fsm_obj.curr_state_object.orient_payload_setting)
+        print(fsm_obj.curr_state_object.orient_payload_periodic_time)
+        
+        # Make sure to cleanup to keep effects isolated!
+        fsm_obj.curr_state_object.stop()
+        fsm_obj.curr_state_run_asyncio_task.cancel()
+        return input("Did the orient mechanism and/or period change as intended? (Y/N): ").strip().upper()
+
+def test_fsm_orient_command():
+    choice = input("Would you like to try the orient command test (Y/N)?: ").strip().lower()
+    if choice == "y":
+        dm_obj = DataProcess(magnetometer=magnetometer,
+                imu=imu,
+                battery_power_monitor=battery_power_monitor)
+        fsm_obj = FSM(dm_obj,
+                logger,
+                config,
+                antenna_deployment=antenna_deployment,
+                beacon_fsm=beacon_fsm,
+                uhf_packet_manager=uhf_packet_manager,
+                tca=tca, rx0=RX0_OUTPUT, rx1=RX1_OUTPUT, tx0=TX0_OUTPUT, tx1=TX1_OUTPUT)
+        print(fsm_obj.orient_payload_mechanism)
+        print(fsm_obj.orient_payload_period)
+        fsm_obj.set_state("orient")
+        cdh.listen_for_commands(10)
+        print(fsm_obj.orient_payload_mechanism)
+        print(fsm_obj.orient_payload_period)
+        # Make sure to cleanup to keep effects isolated!
+        fsm_obj.curr_state_object.stop()
+        fsm_obj.curr_state_run_asyncio_task.cancel()
+        return input("Did the orient mechanism and/or period change as intended? (Y/N): ").strip().upper()
+
 # ========== MAIN FUNCTION ========== #
 
 def test_all():
@@ -373,6 +444,8 @@ def test_all():
     test_fsm_transitions()
     test_fsm_antenna_burnwire()
     test_fsm_orient_current()
+    test_fsm_orient_config_change()
+    test_fsm_orient_command()
     # dm_obj tests
     test_dm_obj_initialization()
     asyncio.run(test_dm_obj_get_data_updates())
