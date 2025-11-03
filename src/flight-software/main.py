@@ -35,6 +35,8 @@ from lib.adafruit_tca9548a import TCA9548A
 
 from version import __version__
 
+time.sleep(30 * 60)  # 30 minutes
+
 boot_time: float = time.time()
 
 rtc = MicrocontrollerManager()
