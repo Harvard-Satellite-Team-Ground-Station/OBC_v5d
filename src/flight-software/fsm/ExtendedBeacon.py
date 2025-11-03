@@ -2,7 +2,7 @@ from __future__ import annotations
 from collections import OrderedDict
 from lib.pysquared.beacon import Beacon
 
-class BeaconFSM(Beacon):
+class ExtendedBeacon(Beacon):
     """Beacon that also includes FSM state in the beacon data."""
 
     def __init__(self, fsm_obj=None, *args, **kwargs):

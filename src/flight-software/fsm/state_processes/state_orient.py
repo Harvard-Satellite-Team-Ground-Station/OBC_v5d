@@ -23,6 +23,11 @@ class StateOrient:
         self.tx0 = tx0
         self.tx1 = tx1
 
+        self.face0_sensor = None
+        self.face1_sensor = None
+        self.face2_sensor = None
+        self.face3_sensor = None
+
         try:
             self.face0_sensor = VEML7700Manager(logger, tca[0])
         except Exception:
@@ -67,14 +72,14 @@ class StateOrient:
             # step 1: get light readings
             # lights: [scalar, scalar, scalar, scalar]
             try:
-                light1 = self.face0_sensor.get_light()
-                light2 = self.face1_sensor.get_light()
-                light3 = self.face2_sensor.get_light()
-                light4 = self.face3_sensor.get_light()
+                light1 = self.face0_sensor.get_light() if self.face0_sensor is not None else Light(0.0)
+                light2 = self.face1_sensor.get_light() if self.face1_sensor is not None else Light(0.0)
+                light3 = self.face2_sensor.get_light() if self.face2_sensor is not None else Light(0.0)
+                light4 = self.face3_sensor.get_light() if self.face3_sensor is not None else Light(0.0)
                 lights = [light1, light2, light3, light4]
             # if fail, set all to 0
             except Exception as e:
-                self.logger.error(f"Failed to read light sensors: {e}")
+                self.logger.debug(f"Failed to read light sensors: {e}")
                 lights = [Light(0.0), Light(0.0), Light(0.0), Light(0.0)]
 
             # step 2: create light vectors
@@ -92,7 +97,7 @@ class StateOrient:
 
             # step 4: compute the norm sum of the weighted light vectors, net_vec is the sun vector magnitude
             # lightvecs is list of vectors, lights is list of scalars
-            weighted_vecs = [self.vector_mul_scalar(lightvecs[i], lights[i]) for i in range(4)]
+            weighted_vecs = [self.vector_mul_scalar(lightvecs[i], lights[i]._value) for i in range(4)]
             net_vec = [0.0, 0.0]
             for v in weighted_vecs:
                 net_vec = self.vector_add(net_vec, v)

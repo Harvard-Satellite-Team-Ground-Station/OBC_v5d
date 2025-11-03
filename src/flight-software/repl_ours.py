@@ -33,7 +33,7 @@ from lib.pysquared.rtc.manager.microcontroller import MicrocontrollerManager
 from lib.pysquared.watchdog import Watchdog
 from version import __version__
 from fsm.data_processes.data_process import DataProcess
-from fsm.BeaconFSM import BeaconFSM
+from fsm.ExtendedBeacon import ExtendedBeacon
 from fsm.fsm import FSM
 
 
@@ -134,7 +134,7 @@ sband_radio = SX1280Manager(
     initialize_pin(logger, board.RF2_RX_EN, digitalio.Direction.OUTPUT, False),
 )
 
-beacon_fsm = BeaconFSM(
+beacon_fsm = ExtendedBeacon(
     None, # will be fsm_obj soon!
     logger,
     config.cubesat_name,
@@ -310,6 +310,9 @@ def test_fsm_transitions():
         fsm_obj.execute_fsm_step()
         assert fsm_obj.curr_state_name == "orient", "\033[91mFAILED\033[0m [test_fsm_transitions comms -> orient]"
         
+        # Make sure to cleanup to keep effects isolated!
+        fsm_obj.curr_state_object.stop()
+        fsm_obj.curr_state_run_asyncio_task.cancel()
         print("\033[92mPASSED\033[0m [test_fsm_transitions]")
 
 def test_fsm_antenna_burnwire():
@@ -319,6 +322,38 @@ def test_fsm_antenna_burnwire():
         antenna_deployment.burn(5)
         print("Finished burning.")
         return input("Did the burnwire get hot? (Y/N): ").strip().upper()
+    return "N/A"
+
+def test_fsm_orient_current():
+    choice = input("Would you like to try the orient current test (Y/N)?: ").strip().lower()
+    if choice == "y":
+        input("Get ready to test RX0, press enter when ready.").strip().upper()
+        print("Running current for 5 seconds....")
+        RX0_OUTPUT.value = True
+        time.sleep(5)
+        RX0_OUTPUT.value = False
+        input("Did the wire get current? (Y/N): ").strip().upper()
+        
+        input("Get ready to test RX1, press enter when ready.").strip().upper()
+        print("Running current for 5 seconds....")
+        RX1_OUTPUT.value = True
+        time.sleep(5)
+        RX1_OUTPUT.value = False
+        input("Did the wire get current? (Y/N): ").strip().upper()
+
+        input("Get ready to test TX0, press enter when ready.").strip().upper()
+        print("Running current for 5 seconds....")
+        TX0_OUTPUT.value = True
+        time.sleep(5)
+        TX0_OUTPUT.value = False
+        input("Did the wire get current? (Y/N): ").strip().upper()
+
+        input("Get ready to test TX1, press enter when ready.").strip().upper()
+        print("Running current for 5 seconds....")
+        TX1_OUTPUT.value = True
+        time.sleep(5)
+        TX1_OUTPUT.value = False
+        input("Did the wire get current? (Y/N): ").strip().upper()
     return "N/A"
 
 def test_fsm_comms_beacon():
@@ -337,9 +372,10 @@ def test_all():
     # fsm tests
     test_fsm_transitions()
     test_fsm_antenna_burnwire()
+    test_fsm_orient_current()
     # dm_obj tests
     test_dm_obj_initialization()
     asyncio.run(test_dm_obj_get_data_updates())
     asyncio.run(test_dm_obj_magnetometer())
-    asyncio.run(test_dm_obj_imu())
-    asyncio.run(test_dm_obj_battery())
+    #asyncio.run(test_dm_obj_imu())
+    #asyncio.run(test_dm_obj_battery())

@@ -4,7 +4,7 @@
 
 # ++++++++++++++ Imports/Installs ++++++++++++++ #
 import asyncio
-from fsm.BeaconFSM import BeaconFSM
+from fsm.ExtendedBeacon import ExtendedBeacon
 from lib.pysquared.hardware.radio.packetizer.packet_manager import PacketManager
 
 
@@ -15,7 +15,7 @@ class StateComms:
         self.logger = logger
         self.running = False
         self.done = True
-        self.beacon_fsm:BeaconFSM = beacon_fsm
+        self.beacon_fsm:ExtendedBeacon = beacon_fsm
         self.uhf_packet_manager:PacketManager = uhf_packet_manager
     
     async def run(self):
