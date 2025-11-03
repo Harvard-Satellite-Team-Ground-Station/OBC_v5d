@@ -5,7 +5,7 @@ from lib.pysquared.cdh import CommandDataHandler
 
 class ExtendedCommandDataHandler(CommandDataHandler):
     """
-    CDH that also includes a command to control orient payload.
+    CDH extended to allow for controlling orient of payload.
     CommandDataHandler:
         logger: Logger,
         config: Config or ExtendedConfig,

@@ -3,6 +3,14 @@ from lib.pysquared.config.config import Config
 
 class ExtendedConfig(Config):
     def __init__(self, config_path: str):
+        """
+        Config extended to allow for controlling orient of payload.
+        CommandDataHandler:
+            logger: Logger,
+            config: Config or ExtendedConfig,
+            packet_manager: PacketManager,
+            send_delay: float = 0.2,
+        """
         super().__init__(config_path)
         self._observers = []
         # Add new attributes if they don't exist in JSON
