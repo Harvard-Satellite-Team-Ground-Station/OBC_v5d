@@ -318,8 +318,9 @@ def test_fsm_transitions():
         assert fsm_obj.curr_state_name == "orient", "\033[91mFAILED\033[0m [test_fsm_transitions comms -> orient]"
         
         # Make sure to cleanup to keep effects isolated!
-        fsm_obj.curr_state_object.stop()
-        fsm_obj.curr_state_run_asyncio_task.cancel()
+        if fsm_obj.curr_state_run_asyncio_task is not None:
+            fsm_obj.curr_state_object.stop()
+            fsm_obj.curr_state_run_asyncio_task.cancel()
         print("\033[92mPASSED\033[0m [test_fsm_transitions]")
 
 def test_fsm_antenna_burnwire():
@@ -363,15 +364,6 @@ def test_fsm_orient_current():
         input("Did the wire get current? (Y/N): ").strip().upper()
     return "N/A"
 
-def test_fsm_comms_beacon():
-    choice = input("Would you like to try the comms beacon test (Y/N)?: ").strip().lower()
-    if choice == "y":
-        print("Burning for 5 seconds....")
-        antenna_deployment.burn(5)
-        print("Finished burning.")
-        return input("Did the burnwire get hot? (Y/N): ").strip().upper()
-    return "N/A"
-
 def test_fsm_orient_config_change():
     choice = input("Would you like to try the orient config change test (Y/N)?: ").strip().lower()
     if choice == "y":
@@ -386,7 +378,6 @@ def test_fsm_orient_config_change():
                 uhf_packet_manager=uhf_packet_manager,
                 tca=tca, rx0=RX0_OUTPUT, rx1=RX1_OUTPUT, tx0=TX0_OUTPUT, tx1=TX1_OUTPUT)
         
-        fsm_obj.curr_state_name == "orient"
         fsm_obj.set_state("orient")
 
         print(fsm_obj.curr_state_object.orient_payload_setting)
@@ -408,8 +399,9 @@ def test_fsm_orient_config_change():
         print(fsm_obj.curr_state_object.orient_payload_periodic_time)
         
         # Make sure to cleanup to keep effects isolated!
-        fsm_obj.curr_state_object.stop()
-        fsm_obj.curr_state_run_asyncio_task.cancel()
+        if fsm_obj.curr_state_run_asyncio_task is not None:
+            fsm_obj.curr_state_object.stop()
+            fsm_obj.curr_state_run_asyncio_task.cancel()
         return input("Did the orient mechanism and/or period change as intended? (Y/N): ").strip().upper()
 
 def test_fsm_orient_command():
@@ -425,15 +417,16 @@ def test_fsm_orient_command():
                 beacon_fsm=beacon_fsm,
                 uhf_packet_manager=uhf_packet_manager,
                 tca=tca, rx0=RX0_OUTPUT, rx1=RX1_OUTPUT, tx0=TX0_OUTPUT, tx1=TX1_OUTPUT)
-        print(fsm_obj.orient_payload_mechanism)
-        print(fsm_obj.orient_payload_period)
         fsm_obj.set_state("orient")
+        print(fsm_obj.curr_state_object.orient_payload_setting)
+        print(fsm_obj.curr_state_object.orient_payload_periodic_time)
         cdh.listen_for_commands(10)
-        print(fsm_obj.orient_payload_mechanism)
-        print(fsm_obj.orient_payload_period)
+        print(fsm_obj.curr_state_object.orient_payload_setting)
+        print(fsm_obj.curr_state_object.orient_payload_periodic_time)
         # Make sure to cleanup to keep effects isolated!
-        fsm_obj.curr_state_object.stop()
-        fsm_obj.curr_state_run_asyncio_task.cancel()
+        if fsm_obj.curr_state_run_asyncio_task is not None:
+            fsm_obj.curr_state_object.stop()
+            fsm_obj.curr_state_run_asyncio_task.cancel()
         return input("Did the orient mechanism and/or period change as intended? (Y/N): ").strip().upper()
 
 # ========== MAIN FUNCTION ========== #
