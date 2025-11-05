@@ -82,6 +82,16 @@ spi1 = _spi_init(
 )
 
 mcp = MCP23017(i2c1)
+ENABLE_HEATER = mcp.get_pin(0)
+PAYLOAD_PWR_ENABLE = mcp.get_pin(1)
+PAYLOAD_BATT_ENABLE = mcp.get_pin(3)
+ENABLE_HEATER.direction = digitalio.Direction.OUTPUT
+PAYLOAD_PWR_ENABLE.direction = digitalio.Direction.OUTPUT
+PAYLOAD_BATT_ENABLE.direction = digitalio.Direction.OUTPUT
+
+# set these to high so that we have the circuitry ready for use
+PAYLOAD_PWR_ENABLE.value = True
+PAYLOAD_BATT_ENABLE.value = True
 
 SPI0_CS0 = initialize_pin(logger, board.SPI0_CS0, digitalio.Direction.OUTPUT, True)
 
