@@ -12,13 +12,19 @@ from lib.pysquared.hardware.radio.manager.sx1280 import SX1280Manager
 from lib.pysquared.hardware.busio import _spi_init, initialize_i2c_bus
 from lib.pysquared.logger import Logger
 from lib.pysquared.nvm.counter import Counter
+from lib.pysquared.config.jokes_config import JokesConfig
 
 logger: Logger = Logger(
     error_counter=Counter(1),
     colorized=False,
 )
 config: Config = Config("config.json")
+jokes_config: JokesConfig = JokesConfig("jokes.json")
 
+# manually set the pin high to allow mcp to be detected
+GPIO_RESET = (
+    initialize_pin(logger, board.GPIO_EXPANDER_RESET, digitalio.Direction.OUTPUT, True),
+)
 
 # NEW
 spi0 = _spi_init(
@@ -85,6 +91,7 @@ cdh = CommandDataHandler(
     logger,
     config,
     packet_manager,
+    jokes_config,
 )
 
 ground_station = GroundStation(
