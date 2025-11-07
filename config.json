@@ -1,7 +1,7 @@
 {
   "battery_voltage": 5.2,
   "critical_battery_voltage": 6.6,
-  "cubesat_name": "HUCSAT",
+  "cubesat_name": "HUCSAT_GROUNDSTATION",
   "current_draw": 240.5,
   "debug": true,
   "degraded_battery_voltage": 7.0,
@@ -68,7 +68,7 @@
       "modulation_type": 0,
       "node_address": 1
     },
-    "license": "",
+    "license": "KE2CCN",
     "lora": {
       "ack_delay": 0.2,
       "coding_rate": 8,

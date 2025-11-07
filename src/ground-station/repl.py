@@ -4,10 +4,12 @@ from busio import SPI
 from lib.ground_station.ground_station import GroundStation
 from lib.pysquared.cdh import CommandDataHandler
 from lib.pysquared.config.config import Config
-from lib.pysquared.hardware.busio import _spi_init
 from lib.pysquared.hardware.digitalio import initialize_pin
 from lib.pysquared.hardware.radio.manager.rfm9x import RFM9xManager
 from lib.pysquared.hardware.radio.packetizer.packet_manager import PacketManager
+from lib.adafruit_mcp230xx.mcp23017 import MCP23017
+from lib.pysquared.hardware.radio.manager.sx1280 import SX1280Manager
+from lib.pysquared.hardware.busio import _spi_init, initialize_i2c_bus
 from lib.pysquared.logger import Logger
 from lib.pysquared.nvm.counter import Counter
 
@@ -17,13 +19,51 @@ logger: Logger = Logger(
 )
 config: Config = Config("config.json")
 
-spi0: SPI = _spi_init(
+
+# NEW
+spi0 = _spi_init(
     logger,
     board.SPI0_SCK,
     board.SPI0_MOSI,
     board.SPI0_MISO,
 )
 
+spi1 = _spi_init(
+    logger,
+    board.SPI1_SCK,
+    board.SPI1_MOSI,
+    board.SPI1_MISO,
+)
+
+SPI0_CS0 = initialize_pin(logger, board.SPI0_CS0, digitalio.Direction.OUTPUT, True)
+
+SPI1_CS0 = initialize_pin(logger, board.SPI1_CS0, digitalio.Direction.OUTPUT, True)
+
+i2c1 = initialize_i2c_bus(
+    logger,
+    board.SCL1,
+    board.SDA1,
+    100000,
+)
+
+mcp = MCP23017(i2c1)
+
+RF2_IO0 = mcp.get_pin(6)
+
+sband_radio = SX1280Manager(
+    logger,
+    config.radio,
+    spi1,
+    SPI1_CS0,
+    initialize_pin(logger, board.RF2_RST, digitalio.Direction.OUTPUT, True),
+    RF2_IO0,
+    2.4,
+    initialize_pin(logger, board.RF2_TX_EN, digitalio.Direction.OUTPUT, False),
+    initialize_pin(logger, board.RF2_RX_EN, digitalio.Direction.OUTPUT, False),
+)
+# END NEW
+
+"""
 radio = RFM9xManager(
     logger,
     config.radio,
@@ -31,10 +71,11 @@ radio = RFM9xManager(
     initialize_pin(logger, board.SPI0_CS0, digitalio.Direction.OUTPUT, True),
     initialize_pin(logger, board.RF1_RST, digitalio.Direction.OUTPUT, True),
 )
+"""
 
 packet_manager = PacketManager(
     logger,
-    radio,
+    sband_radio,
     config.radio.license,
     Counter(2),
     0.2,
