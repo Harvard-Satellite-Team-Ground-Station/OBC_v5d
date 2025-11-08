@@ -147,13 +147,31 @@ sband_radio = SX1280Manager(
     initialize_pin(logger, board.RF2_RX_EN, digitalio.Direction.OUTPUT, False),
 )
 
+sband_packet_manager = PacketManager(
+    logger,
+    sband_radio,
+    config.radio.license,
+    Counter(2),
+    0.2,
+)
+
 beacon_fsm = ExtendedBeacon(
     None, # will be fsm_obj soon!
     logger,
     config.cubesat_name,
-    uhf_packet_manager,
+    sband_packet_manager,
     time.monotonic(),
     imu,
+)
+
+beacon = Beacon(
+    logger,
+    config.cubesat_name,
+    sband_packet_manager,
+    time.monotonic(),
+    imu,
+    magnetometer,
+    sband_radio,
 )
 
 # Light Sensors
@@ -413,19 +431,49 @@ def test_fsm_orient_command():
             fsm_obj.curr_state_run_asyncio_task.cancel()
         return input("Did the orient mechanism and/or period change as intended? (Y/N): ").strip().upper()
 
+def test_sband():
+    choice = input("Choose to be a receiver R or sender S.  Make sure the receiver starts up first!").strip().upper()
+    if choice == "R":
+        # Wait for any response
+        start_time = time.time()
+        while time.time() - start_time < 10:
+            message = sband_radio._radio.receive(keep_listening=False)
+            if message:
+                received = message
+                print("Received...", received)
+                break
+            else:
+                print("Still waiting...")
+            time.sleep(0.5)
+    else:
+        # Attempt to send the beacon
+        print("Sending in 2 seconds...")
+        time.sleep(2)
+        success = sband_radio._radio.send(b"Hello there from FCB!")
+        if not success:
+            print("sband failed to send.")
+        else:
+            print("sband sent successfully!")
+    print("Stopping test...")
+    return
+
 # ========== MAIN FUNCTION ========== #
 
 def test_all():
-    # comment out tests you don't want to run
     # fsm tests
-    test_fsm_transitions()              # TESTED
-    test_fsm_deploy_burnwire()          # TESTED - do deploy aux 1 top one (or bottom) and GND in upper right
-    test_fsm_orient_current()           # TESTED - do RX0, RX1, TX0, TX1 and GND in upper right
-    test_fsm_orient_config_change()     # TESTED
-    test_fsm_orient_command()           # READY TO TEST
+    test_fsm_transitions()                          # TESTED
+    #test_fsm_deploy_burnwire()                     # TESTED - do deploy aux 1 top one (or bottom) and GND in upper right
+    #test_fsm_orient_current()                      # TESTED - do RX0, RX1, TX0, TX1 and GND in upper right
+    #test_fsm_orient_config_change()                # TESTED        
+    #test_fsm_orient_command()
+
+    # non-fsm tests
+    #test_sband()                                   # TESTED
+
     # dm_obj tests
-    test_dm_obj_initialization()
-    asyncio.run(test_dm_obj_get_data_updates())
-    asyncio.run(test_dm_obj_magnetometer())
-    #asyncio.run(test_dm_obj_imu())
-    #asyncio.run(test_dm_obj_battery())
+    #test_dm_obj_initialization()                   # TESTED
+    #asyncio.run(test_dm_obj_get_data_updates())    # TESTED
+    #asyncio.run(test_dm_obj_magnetometer())        # TESTED
+    #asyncio.run(test_dm_obj_imu())                 # TESTED
+    #asyncio.run(test_dm_obj_battery())             # TESTED
+    pass
