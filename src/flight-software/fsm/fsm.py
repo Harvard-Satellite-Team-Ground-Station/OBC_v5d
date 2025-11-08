@@ -25,7 +25,7 @@ class FSM:
         }
         self.curr_state_name = "bootup"
         self.curr_state_object = self.state_objects["bootup"]
-        self.curr_state_run_asyncio_task = None
+        self.curr_state_run_asyncio_task = asyncio.create_task(self.curr_state_object.run())
         self.payload_deployed = False
         self.antennas_deployed = False
     
@@ -59,25 +59,30 @@ class FSM:
         # Startup → Detumble
         if self.curr_state_name == "bootup" and self.curr_state_object.is_done():
             self.set_state("detumble")
-            return
+            return 0
         
         # Emergency Detumble
         if self.dp_obj.data["data_imu_av_magnitude"] > 1:
             # Don't wait for other state to be done, shut it off immediately
             self.set_state("detumble")
-            return
+            return 0
 
         # Detumble → Deploy
         if self.curr_state_name == "detumble" and self.curr_state_object.is_done():
-            if self.payload_deployed:
+            if self.payload_deployed and self.dp_obj.data["data_batt_volt"] > 5.5:
                 self.set_state("orient")
-            else:
+            elif not self.payload_deployed and self.dp_obj.data["data_batt_volt"] > 6:
                 self.payload_deployed = True
-                self.antennas_deployed = False
+                self.antennas_deployed = True
                 self.set_state("deploy")
-            return
+            else:
+                # Let the main file know we need to charge a bit more
+                return -1  
 
         # Deploy → Orient
-        if self.curr_state_name == "deploy" and self.curr_state_object.is_done():
+        if self.curr_state_name == "deploy" and self.curr_state_object.is_done() and self.dp_obj.data["data_batt_volt"] > 5.5:
             self.set_state("orient")
-            return
+            return 0
+        elif self.curr_state_name == "deploy" and self.curr_state_object.is_done() and self.dp_obj.data["data_batt_volt"] < 5.5:
+            # Let the main file know we need to charge a bit more
+            return -1

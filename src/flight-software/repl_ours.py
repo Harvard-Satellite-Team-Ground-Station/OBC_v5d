@@ -238,10 +238,8 @@ async def test_dm_obj_battery():
     dm_obj.start_run_all_data()
     input("Please plug in the batteries and press Enter when done.")
     print("Voltage with batteries:", dm_obj.data["data_batt_volt"])
-    print("Percentage with batteries:", dm_obj.data["data_batt_perc"])
     input("Please unplug the batteries and press Enter when done.")
     print("Voltage without batteries:", dm_obj.data["data_batt_volt"])
-    print("Percentage without batteries:", dm_obj.data["data_batt_perc"])
     return input("Did the voltage drop by >= 4V? (Y/N): ").strip().upper()
 
 async def test_dm_obj_get_data_updates():
@@ -313,6 +311,8 @@ def test_fsm_transitions():
 
         # Simulate detumble done
         fsm_obj.curr_state_object.done = True
+        fsm_obj.dp_obj.data["data_batt_volt"] = 7
+        fsm_obj.dp_obj.data["data_imu_av_magnitude"] = 0.2
         fsm_obj.execute_fsm_step()
         assert fsm_obj.curr_state_name == "deploy", "\033[91mFAILED\033[0m [test_fsm_transitions detumble -> deploy]"
 
@@ -457,23 +457,267 @@ def test_sband():
     print("Stopping test...")
     return
 
+async def test_fsm_emergency_detumble():
+    """
+    Test that the FSM immediately switches to 'detumble' when 
+    angular velocity magnitude exceeds emergency threshold.
+    """
+    dm_obj = DataProcess(magnetometer=magnetometer,
+                        imu=imu,
+                        battery_power_monitor=battery_power_monitor)
+    fsm_obj = FSM(dm_obj,
+            logger,
+            config,
+            deployment_switch=antenna_deployment,
+            tca=tca, rx0=RX0_OUTPUT, rx1=RX1_OUTPUT, tx0=TX0_OUTPUT, tx1=TX1_OUTPUT)
+    beacon_fsm.fsm_obj = fsm_obj
+    
+    # Initially, FSM should be in bootup
+    assert(fsm_obj.curr_state_name == "bootup")
+    # Simulate bootup for a little bit (lower than what it is supposed to be, i.e > 5 seconds)
+    await asyncio.sleep(2)
+
+    # Simulate dangerous angular velocity (trigger emergency detumble)
+    fsm_obj.dp_obj.data["data_imu_av_magnitude"] = 2.0
+    fsm_obj.execute_fsm_step()
+
+    # FSM should immediately jump to detumble
+    assert fsm_obj.curr_state_name == "detumble", "\033[91mFAILED\033[0m [test_fsm_emergency_detumble: not transitioned to detumble]"
+    # Clean up asyncio task if created
+    if fsm_obj.curr_state_run_asyncio_task is not None:
+        fsm_obj.curr_state_object.stop()
+        fsm_obj.curr_state_run_asyncio_task.cancel()
+    print("\033[92mPASSED\033[0m [test_fsm_emergency_detumble]")
+
+async def test_fsm_detumble_stop_conditions():
+    """
+    Test that the FSM transitions from 'detumble' -> 'deploy'
+    once angular velocity magnitude falls below the detumble threshold.
+    More robust than test_fsm_transitions.
+    """
+    # part 1: test a successful stop detumble -> deploy
+    dm_obj = DataProcess(magnetometer=magnetometer,
+                        imu=imu,
+                        battery_power_monitor=battery_power_monitor)
+    fsm_obj = FSM(dm_obj,
+            logger,
+            config,
+            deployment_switch=antenna_deployment,
+            tca=tca, rx0=RX0_OUTPUT, rx1=RX1_OUTPUT, tx0=TX0_OUTPUT, tx1=TX1_OUTPUT)
+    beacon_fsm.fsm_obj = fsm_obj
+
+    # Initially, FSM should be in bootup
+    assert(fsm_obj.curr_state_name == "bootup")
+    # Simulate bootup for a little bit (higher than what it is supposed to be, i.e > 5 seconds)
+    await asyncio.sleep(6)
+    fsm_obj.execute_fsm_step()
+
+    # Now we should be in Detumble
+    assert(fsm_obj.curr_state_name == "detumble")
+    # So that the detumble trigger gets done, set arbitrarily to 7 and 0.02 (< 0.05)
+    fsm_obj.dp_obj.data["data_batt_volt"] = 7
+    fsm_obj.dp_obj.data["data_imu_av_magnitude"] = 0.02
+    # Wait a little so that it execute detumble
+    await asyncio.sleep(fsm_obj.curr_state_object.detumble_frequency + 0.1)
+    fsm_obj.execute_fsm_step()
+
+    # Now we should be in Deploy
+    assert fsm_obj.curr_state_name == "deploy", "\033[91mFAILED\033[0m [test_fsm_detumble_stop_conditions]"
+    # Clean up asyncio task if created
+    if fsm_obj.curr_state_run_asyncio_task is not None:
+        fsm_obj.curr_state_object.stop()
+        fsm_obj.curr_state_run_asyncio_task.cancel()
+    print("\033[92mPASSED\033[0m [test_fsm_detumble_stop_conditions [Part 1, batt and av mag both good]]")
+
+    # part 2: test a non-successful stop detumble -> deploy due to battery voltage
+    beacon_fsm.fsm_obj = None
+    fsm_obj = None
+    dm_obj = None
+
+    dm_obj = DataProcess(magnetometer=magnetometer,
+                        imu=imu,
+                        battery_power_monitor=battery_power_monitor)
+    fsm_obj = FSM(dm_obj,
+            logger,
+            config,
+            deployment_switch=antenna_deployment,
+            tca=tca, rx0=RX0_OUTPUT, rx1=RX1_OUTPUT, tx0=TX0_OUTPUT, tx1=TX1_OUTPUT)
+    beacon_fsm.fsm_obj = fsm_obj
+
+    # Initially, FSM should be in bootup
+    assert(fsm_obj.curr_state_name == "bootup")
+    # Simulate bootup for a little bit (higher than what it is supposed to be, i.e > 5 seconds)
+    await asyncio.sleep(6)
+    fsm_obj.execute_fsm_step()
+
+    # Now we should be in Detumble
+    assert(fsm_obj.curr_state_name == "detumble")
+    # So that the detumble trigger gets done, set to 5 (< 6) and 0.02 (< 0.05)
+    fsm_obj.dp_obj.data["data_batt_volt"] = 5
+    fsm_obj.dp_obj.data["data_imu_av_magnitude"] = 0.02
+    # Wait a little so that it execute detumble
+    await asyncio.sleep(fsm_obj.curr_state_object.detumble_frequency + 0.1)
+    fsm_obj.execute_fsm_step()
+
+    # We should STILL be in Detumble
+    assert fsm_obj.curr_state_name == "detumble", "\033[91mFAILED\033[0m [test_fsm_detumble_stop_conditions]"
+    # Clean up asyncio task if created
+    if fsm_obj.curr_state_run_asyncio_task is not None:
+        fsm_obj.curr_state_object.stop()
+        fsm_obj.curr_state_run_asyncio_task.cancel()
+    print("\033[92mPASSED\033[0m [test_fsm_detumble_stop_conditions [Part 2, batt too low]]")
+
+async def test_fsm_orient_above_battery():
+    """
+    Test that the FSM transitions from 'detumble' or 'deploy' -> 'orient' when battery is sufficient.
+    More robust than test_fsm_transitions.
+    """
+
+    # part 1: test a successful stop detumble -> orient
+    dm_obj = DataProcess(magnetometer=magnetometer,
+                        imu=imu,
+                        battery_power_monitor=battery_power_monitor)
+    fsm_obj = FSM(dm_obj,
+            logger,
+            config,
+            deployment_switch=antenna_deployment,
+            tca=tca, rx0=RX0_OUTPUT, rx1=RX1_OUTPUT, tx0=TX0_OUTPUT, tx1=TX1_OUTPUT)
+    beacon_fsm.fsm_obj = fsm_obj
+    # Initially, FSM should be in bootup
+    fsm_obj.payload_deployed = True
+    fsm_obj.antennas_deployed = True
+    fsm_obj.set_state("detumble")
+    assert(fsm_obj.curr_state_name == "detumble")
+    # Wait a little so that it execute detumble
+    fsm_obj.dp_obj.data["data_batt_volt"] = 7
+    await asyncio.sleep(fsm_obj.curr_state_object.detumble_frequency + 0.1)
+    fsm_obj.execute_fsm_step()
+    # Now we should be in Orient
+    assert fsm_obj.curr_state_name == "orient", "\033[91mFAILED\033[0m [test_fsm_orient_above_battery]"
+    # Clean up asyncio task if created
+    if fsm_obj.curr_state_run_asyncio_task is not None:
+        fsm_obj.curr_state_object.stop()
+        fsm_obj.curr_state_run_asyncio_task.cancel()
+    beacon_fsm.fsm_obj = None
+    fsm_obj = None
+    dm_obj = None
+    print("\033[92mPASSED\033[0m [test_fsm_orient_above_battery [Part 1, detumble, batt is good]]")
+
+    # part 2: test a non-successful stop detumble -> orient
+    dm_obj = DataProcess(magnetometer=magnetometer,
+                        imu=imu,
+                        battery_power_monitor=battery_power_monitor)
+    fsm_obj = FSM(dm_obj,
+            logger,
+            config,
+            deployment_switch=antenna_deployment,
+            tca=tca, rx0=RX0_OUTPUT, rx1=RX1_OUTPUT, tx0=TX0_OUTPUT, tx1=TX1_OUTPUT)
+    beacon_fsm.fsm_obj = fsm_obj
+    # Initially, FSM should be in bootup
+    fsm_obj.payload_deployed = True
+    fsm_obj.antennas_deployed = True
+    fsm_obj.set_state("detumble")
+    assert(fsm_obj.curr_state_name == "detumble")
+    # Wait a little so that it execute detumble
+    fsm_obj.dp_obj.data["data_batt_volt"] = 5
+    await asyncio.sleep(fsm_obj.curr_state_object.detumble_frequency + 0.1)
+    fsm_obj.execute_fsm_step()
+    # Now we should be in detumble
+    assert fsm_obj.curr_state_name == "detumble", "\033[91mFAILED\033[0m [test_fsm_orient_above_battery]"
+    # Clean up asyncio task if created
+    if fsm_obj.curr_state_run_asyncio_task is not None:
+        fsm_obj.curr_state_object.stop()
+        fsm_obj.curr_state_run_asyncio_task.cancel()
+    beacon_fsm.fsm_obj = None
+    fsm_obj = None
+    dm_obj = None
+    print("\033[92mPASSED\033[0m [test_fsm_orient_above_battery [Part 2, detumble, batt is too low]]")
+
+    # part 3: test a successful stop deploy -> orient
+    dm_obj = DataProcess(magnetometer=magnetometer,
+                        imu=imu,
+                        battery_power_monitor=battery_power_monitor)
+    fsm_obj = FSM(dm_obj,
+            logger,
+            config,
+            deployment_switch=antenna_deployment,
+            tca=tca, rx0=RX0_OUTPUT, rx1=RX1_OUTPUT, tx0=TX0_OUTPUT, tx1=TX1_OUTPUT)
+    beacon_fsm.fsm_obj = fsm_obj
+    # Initially, FSM should be in bootup
+    fsm_obj.payload_deployed = True
+    fsm_obj.antennas_deployed = True
+    fsm_obj.set_state("deploy")
+    assert(fsm_obj.curr_state_name == "deploy")
+    # Wait a little so that it execute deploy
+    fsm_obj.dp_obj.data["data_batt_volt"] = 7
+    fsm_obj.curr_state_object.finished_burn = True
+    await asyncio.sleep(2)
+    fsm_obj.execute_fsm_step()
+    # Now we should be in Orient
+    assert fsm_obj.curr_state_name == "orient", "\033[91mFAILED\033[0m [test_fsm_orient_above_battery]"
+    # Clean up asyncio task if created
+    if fsm_obj.curr_state_run_asyncio_task is not None:
+        fsm_obj.curr_state_object.stop()
+        fsm_obj.curr_state_run_asyncio_task.cancel()
+    beacon_fsm.fsm_obj = None
+    fsm_obj = None
+    dm_obj = None
+    print("\033[92mPASSED\033[0m [test_fsm_orient_above_battery [Part 3, deploy, batt is good]]")
+
+    # part 4: test a non-successful stop deploy -> orient
+    dm_obj = DataProcess(magnetometer=magnetometer,
+                        imu=imu,
+                        battery_power_monitor=battery_power_monitor)
+    fsm_obj = FSM(dm_obj,
+            logger,
+            config,
+            deployment_switch=antenna_deployment,
+            tca=tca, rx0=RX0_OUTPUT, rx1=RX1_OUTPUT, tx0=TX0_OUTPUT, tx1=TX1_OUTPUT)
+    beacon_fsm.fsm_obj = fsm_obj
+    # Initially, FSM should be in bootup
+    fsm_obj.payload_deployed = True
+    fsm_obj.antennas_deployed = True
+    fsm_obj.set_state("deploy")
+    assert(fsm_obj.curr_state_name == "deploy")
+    # Wait a little so that it execute deploy
+    fsm_obj.dp_obj.data["data_batt_volt"] = 5
+    fsm_obj.curr_state_object.finished_burn = True
+    await asyncio.sleep(2)
+    fsm_obj.execute_fsm_step()
+    # We should still be in deploy
+    print(fsm_obj.curr_state_name, fsm_obj.curr_state_object.is_done(), fsm_obj.dp_obj.data["data_batt_volt"])
+    assert fsm_obj.curr_state_name == "deploy", "\033[91mFAILED\033[0m [test_fsm_orient_above_battery]"
+    # Clean up asyncio task if created
+    if fsm_obj.curr_state_run_asyncio_task is not None:
+        fsm_obj.curr_state_object.stop()
+        fsm_obj.curr_state_run_asyncio_task.cancel()
+    beacon_fsm.fsm_obj = None
+    fsm_obj = None
+    dm_obj = None
+    print("\033[92mPASSED\033[0m [test_fsm_orient_above_battery [Part 4, deploy, batt is too low]]")
+
+
 # ========== MAIN FUNCTION ========== #
 
 def test_all():
     # fsm tests
-    test_fsm_transitions()                          # TESTED
-    #test_fsm_deploy_burnwire()                     # TESTED - do deploy aux 1 top one (or bottom) and GND in upper right
-    #test_fsm_orient_current()                      # TESTED - do RX0, RX1, TX0, TX1 and GND in upper right
-    #test_fsm_orient_config_change()                # TESTED        
+    #test_fsm_transitions()                           # TESTED
+    #test_fsm_deploy_burnwire()                       # TESTED - do deploy aux 1 top one (or bottom) and GND in upper right
+    #test_fsm_orient_current()                        # TESTED - do RX0, RX1, TX0, TX1 and GND in upper right
+    #test_fsm_orient_config_change()                  # TESTED       
+    #test_fsm_emergency_detumble()                  
     #test_fsm_orient_command()
+    #asyncio.run(test_fsm_emergency_detumble())       # TESTED 
+    #asyncio.run(test_fsm_detumble_stop_conditions()) # TESTED 
+    #asyncio.run(test_fsm_orient_above_battery())     # TESTED
 
     # non-fsm tests
-    #test_sband()                                   # TESTED
+    #test_sband()                                    # TESTED
 
     # dm_obj tests
-    #test_dm_obj_initialization()                   # TESTED
-    #asyncio.run(test_dm_obj_get_data_updates())    # TESTED
-    #asyncio.run(test_dm_obj_magnetometer())        # TESTED
-    #asyncio.run(test_dm_obj_imu())                 # TESTED
-    #asyncio.run(test_dm_obj_battery())             # TESTED
+    #test_dm_obj_initialization()                     # TESTED
+    #asyncio.run(test_dm_obj_get_data_updates())      # TESTED
+    #asyncio.run(test_dm_obj_magnetometer())          # TESTED
+    #asyncio.run(test_dm_obj_imu())                   # TESTED
+    #asyncio.run(test_dm_obj_battery())               # TESTED
     pass

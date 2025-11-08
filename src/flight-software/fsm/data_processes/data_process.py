@@ -21,7 +21,6 @@ class DataProcess():
         self.running = True
         self.data = {
             "data_batt_volt" : 0.0,                     # battery voltage
-            "data_batt_perc" : 0.0,                     # battery percentage
             "data_imu_av" : [0.0,0.0,0.0],              # imu angular velocity [ax, ay, az] in rad/s²
             "data_imu_av_magnitude" : 0.0,              # imu angular velocity magnitude (Euclidian norm aka length of data_imu_av vector)
             "data_imu_acc" : [0.0,0.0,0.0],             # imu acceleration [ax, ay, az] in m/s²" : [0.0,0.0,0.0],             # imu position
@@ -52,13 +51,11 @@ class DataProcess():
 
     async def get_data_battery(self):
         """
-        Get battery voltage (bv) and battery percentage (bp)
+        Get battery voltage (bv)
         """
         while self.running:
             voltage = self.protos_power_monitor.get_bus_voltage().value
-            battery_percentage = 100 * (voltage - 35000)/6000 
             self.data["data_batt_volt"] = voltage
-            self.data["data_batt_perc"] = battery_percentage
             await asyncio.sleep(1)
 
     async def get_data_imu_av(self):

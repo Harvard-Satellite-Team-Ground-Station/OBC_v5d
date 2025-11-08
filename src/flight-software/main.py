@@ -3,6 +3,7 @@ import os
 import time
 
 import board
+import asyncio
 import digitalio
 import microcontroller
 from lib.adafruit_mcp230xx.mcp23017 import MCP23017
@@ -64,179 +65,211 @@ for i in range(loiter_time):
     logger.info(f"Code Starting in {loiter_time-i} seconds")
     time.sleep(1)
 
-try:
-    SPI0_CS0 = initialize_pin(logger, board.SPI0_CS0, digitalio.Direction.OUTPUT, True)
-    SPI1_CS0 = initialize_pin(logger, board.SPI1_CS0, digitalio.Direction.OUTPUT, True)
-    GPIO_RESET = initialize_pin(
-        logger, board.GPIO_EXPANDER_RESET, digitalio.Direction.OUTPUT, True
-    )
 
-    i2c1 = initialize_i2c_bus(
-        logger,
-        board.SCL1,
-        board.SDA1,
-        100000,
-    )
-
-    watchdog = Watchdog(logger, board.WDT_WDI)
+async def safe_sleep_async(duration: float, watchdog: Watchdog, logger: Logger, watchdog_timeout: float = 15.0, max_sleep: float = None):
+    if max_sleep is not None and duration > max_sleep:
+        logger.warning(
+            "Requested sleep duration exceeds maximum allowed. Adjusting.",
+            requested_duration=duration,
+            max_sleep=max_sleep,
+        )
+        duration = max_sleep
+    logger.info("Entering safe async sleep", duration=duration)
+    end_time = time.monotonic() + duration
+    # Initial pet
     watchdog.pet()
+    while time.monotonic() < end_time:
+        time_increment = min(end_time - time.monotonic(), watchdog_timeout)
+        await asyncio.sleep(time_increment)
+        watchdog.pet()
+        logger.debug("Petting watchdog during safe sleep", time_remaining=end_time - time.monotonic())
 
-    i2c0 = initialize_i2c_bus(
-        logger,
-        board.SCL0,
-        board.SDA0,
-        100000,
-    )
 
-    mcp = MCP23017(i2c1)
-
-    # GPB
-    FACE4_ENABLE = mcp.get_pin(8)
-    FACE0_ENABLE = mcp.get_pin(9)
-    FACE1_ENABLE = mcp.get_pin(10)
-    FACE2_ENABLE = mcp.get_pin(11)
-    FACE3_ENABLE = mcp.get_pin(12)
-    FACE5_ENABLE = mcp.get_pin(13)
-
-    # GPA
-    ENABLE_HEATER = mcp.get_pin(0)
-    PAYLOAD_PWR_ENABLE = mcp.get_pin(1)
-    FIRE_DEPLOY2_B = mcp.get_pin(2)
-    PAYLOAD_BATT_ENABLE = mcp.get_pin(3)
-    RF2_IO2 = mcp.get_pin(4)
-    RF2_IO1 = mcp.get_pin(5)
-    RF2_IO0 = mcp.get_pin(6)
-    RF2_IO3 = mcp.get_pin(7)
-
-    spi0 = _spi_init(
-        logger,
-        board.SPI0_SCK,
-        board.SPI0_MOSI,
-        board.SPI0_MISO,
-    )
-
-    spi1 = _spi_init(
-        logger,
-        board.SPI1_SCK,
-        board.SPI1_MOSI,
-        board.SPI1_MISO,
-    )
-
-    sband_radio = SX1280Manager(
-        logger,
-        config.radio,
-        spi1,
-        SPI1_CS0,
-        initialize_pin(logger, board.RF2_RST, digitalio.Direction.OUTPUT, True),
-        RF2_IO0,
-        2.4,
-        initialize_pin(logger, board.RF2_TX_EN, digitalio.Direction.OUTPUT, False),
-        initialize_pin(logger, board.RF2_RX_EN, digitalio.Direction.OUTPUT, False),
-    )
-
-    uhf_radio = RFM9xManager(
-        logger,
-        config.radio,
-        spi0,
-        SPI0_CS0,
-        initialize_pin(logger, board.RF1_RST, digitalio.Direction.OUTPUT, True),
-    )
-
-    magnetometer = LIS2MDLManager(logger, i2c1)
-
-    imu = LSM6DSOXManager(logger, i2c1, 0x6B)
-
-    uhf_packet_manager = PacketManager(
-        logger,
-        uhf_radio,
-        config.radio.license,
-        Counter(2),
-        0.2,
-    )
-
-    cdh = CommandDataHandler(logger, config, uhf_packet_manager, jokes_config)
-
-    beacon = Beacon(
-        logger,
-        config.cubesat_name,
-        uhf_packet_manager,
-        time.monotonic(),
-        imu,
-        magnetometer,
-        uhf_radio,
-        sband_radio,
-    )
-
-    # Face Control Helper Functions
-    def all_faces_off():
-        """
-        This function turns off all of the faces. Note the load switches are disabled low.
-        """
-        FACE0_ENABLE.value = False
-        FACE1_ENABLE.value = False
-        FACE2_ENABLE.value = False
-        FACE3_ENABLE.value = False
-        FACE4_ENABLE.value = False
-
-    def all_faces_on():
-        """
-        This function turns on all of the faces. Note the load switches are enabled high.
-        """
-        FACE0_ENABLE.value = True
-        FACE1_ENABLE.value = True
-        FACE2_ENABLE.value = True
-        FACE3_ENABLE.value = True
-        FACE4_ENABLE.value = True
-
-    mux_reset = initialize_pin(
-        logger, board.MUX_RESET, digitalio.Direction.OUTPUT, False
-    )
-    all_faces_on()
-    time.sleep(0.1)
-    mux_reset.value = True
-    tca = TCA9548A(i2c0, address=int(0x77))  # all 3 connected to high
-
-    battery_power_monitor: PowerMonitorProto = INA219Manager(logger, i2c0, 0x40)
-    solar_power_monitor: PowerMonitorProto = INA219Manager(logger, i2c0, 0x41)
-       
-
-    dp_obj = DataProcess()
-    fsm_obj = FSM(dp_obj, logger, beacon)
-
-    def nominal_power_loop():
-        logger.debug(
-            "FC Board Stats",
-            bytes_remaining=gc.mem_free(),
+async def main_async_loop():
+    try:
+        SPI0_CS0 = initialize_pin(logger, board.SPI0_CS0, digitalio.Direction.OUTPUT, True)
+        SPI1_CS0 = initialize_pin(logger, board.SPI1_CS0, digitalio.Direction.OUTPUT, True)
+        GPIO_RESET = initialize_pin(
+            logger, board.GPIO_EXPANDER_RESET, digitalio.Direction.OUTPUT, True
         )
 
+        i2c1 = initialize_i2c_bus(
+            logger,
+            board.SCL1,
+            board.SDA1,
+            100000,
+        )
+
+        watchdog = Watchdog(logger, board.WDT_WDI)
+        watchdog.pet()
+
+        i2c0 = initialize_i2c_bus(
+            logger,
+            board.SCL0,
+            board.SDA0,
+            100000,
+        )
+
+        mcp = MCP23017(i2c1)
+
+        # GPB
+        FACE4_ENABLE = mcp.get_pin(8)
+        FACE0_ENABLE = mcp.get_pin(9)
+        FACE1_ENABLE = mcp.get_pin(10)
+        FACE2_ENABLE = mcp.get_pin(11)
+        FACE3_ENABLE = mcp.get_pin(12)
+        FACE5_ENABLE = mcp.get_pin(13)
+
+        # GPA
+        ENABLE_HEATER = mcp.get_pin(0)
+        PAYLOAD_PWR_ENABLE = mcp.get_pin(1)
+        FIRE_DEPLOY2_B = mcp.get_pin(2)
+        PAYLOAD_BATT_ENABLE = mcp.get_pin(3)
+        RF2_IO2 = mcp.get_pin(4)
+        RF2_IO1 = mcp.get_pin(5)
+        RF2_IO0 = mcp.get_pin(6)
+        RF2_IO3 = mcp.get_pin(7)
+
+        spi0 = _spi_init(
+            logger,
+            board.SPI0_SCK,
+            board.SPI0_MOSI,
+            board.SPI0_MISO,
+        )
+
+        spi1 = _spi_init(
+            logger,
+            board.SPI1_SCK,
+            board.SPI1_MOSI,
+            board.SPI1_MISO,
+        )
+
+        sband_radio = SX1280Manager(
+            logger,
+            config.radio,
+            spi1,
+            SPI1_CS0,
+            initialize_pin(logger, board.RF2_RST, digitalio.Direction.OUTPUT, True),
+            RF2_IO0,
+            2.4,
+            initialize_pin(logger, board.RF2_TX_EN, digitalio.Direction.OUTPUT, False),
+            initialize_pin(logger, board.RF2_RX_EN, digitalio.Direction.OUTPUT, False),
+        )
+
+        uhf_radio = RFM9xManager(
+            logger,
+            config.radio,
+            spi0,
+            SPI0_CS0,
+            initialize_pin(logger, board.RF1_RST, digitalio.Direction.OUTPUT, True),
+        )
+
+        magnetometer = LIS2MDLManager(logger, i2c1)
+
+        imu = LSM6DSOXManager(logger, i2c1, 0x6B)
+
+        uhf_packet_manager = PacketManager(
+            logger,
+            uhf_radio,
+            config.radio.license,
+            Counter(2),
+            0.2,
+        )
+
+        cdh = CommandDataHandler(logger, config, uhf_packet_manager, jokes_config)
+
+        beacon = Beacon(
+            logger,
+            config.cubesat_name,
+            uhf_packet_manager,
+            time.monotonic(),
+            imu,
+            magnetometer,
+            uhf_radio,
+            sband_radio,
+        )
+
+        # Face Control Helper Functions
+        def all_faces_off():
+            """
+            This function turns off all of the faces. Note the load switches are disabled low.
+            """
+            FACE0_ENABLE.value = False
+            FACE1_ENABLE.value = False
+            FACE2_ENABLE.value = False
+            FACE3_ENABLE.value = False
+            FACE4_ENABLE.value = False
+
+        def all_faces_on():
+            """
+            This function turns on all of the faces. Note the load switches are enabled high.
+            """
+            FACE0_ENABLE.value = True
+            FACE1_ENABLE.value = True
+            FACE2_ENABLE.value = True
+            FACE3_ENABLE.value = True
+            FACE4_ENABLE.value = True
+
+        mux_reset = initialize_pin(
+            logger, board.MUX_RESET, digitalio.Direction.OUTPUT, False
+        )
         all_faces_on()
+        time.sleep(0.1)
+        mux_reset.value = True
+        tca = TCA9548A(i2c0, address=int(0x77))  # all 3 connected to high
 
-        uhf_packet_manager.send(config.radio.license.encode("utf-8"))
+        battery_power_monitor: PowerMonitorProto = INA219Manager(logger, i2c0, 0x40)
+        solar_power_monitor: PowerMonitorProto = INA219Manager(logger, i2c0, 0x41)
+        
 
-        beacon.send()
+        dp_obj = DataProcess()
+        fsm_obj = FSM(dp_obj, logger, beacon)
 
-        cdh.listen_for_commands(10)
+        def nominal_power_loop():
+            logger.debug(
+                "FC Board Stats",
+                bytes_remaining=gc.mem_free(),
+            )
 
-        beacon.send()
+            all_faces_on()
 
-        cdh.listen_for_commands(config.sleep_duration)
+            uhf_packet_manager.send(config.radio.license.encode("utf-8"))
 
-    try:
-        logger.info("Entering main loop")
-        while True:
-            # TODO(nateinaction): Modify behavior based on power state
+            beacon.send()
 
-            fsm_obj.execute_fsm_step() # added
+            cdh.listen_for_commands(10)
 
-            nominal_power_loop()
+            beacon.send()
+
+            cdh.listen_for_commands(config.sleep_duration)
+
+        try:
+            logger.info("Entering main loop")
+            while True:
+                # TODO(nateinaction): Modify behavior based on power state
+                val = fsm_obj.execute_fsm_step() # added
+                if val == -1 or fsm_obj.dp_obj["data_batt_volt"] <= 5:
+                    print("battery too low.  Sleeping for 1 minute.")
+                    await safe_sleep_async(
+                        duration=60,            # sleep 1 minute
+                        watchdog=watchdog,
+                        logger=logger,
+                        watchdog_timeout=15,
+                        max_sleep=300           # max 5 minutes at once
+                    )
+                await asyncio.sleep(0)          # added
+                watchdog.pet()                  # added
+                nominal_power_loop()
+
+        except Exception as e:
+            logger.critical("Critical in Main Loop", e)
+            time.sleep(10)
+            microcontroller.on_next_reset(microcontroller.RunMode.NORMAL)
+            microcontroller.reset()
+        finally:
+            logger.info("Going Neutral!")
 
     except Exception as e:
-        logger.critical("Critical in Main Loop", e)
-        time.sleep(10)
-        microcontroller.on_next_reset(microcontroller.RunMode.NORMAL)
-        microcontroller.reset()
-    finally:
-        logger.info("Going Neutral!")
+        logger.critical("An exception occured within main.py", e)
 
-except Exception as e:
-    logger.critical("An exception occured within main.py", e)
+asyncio.run(main_async_loop())
