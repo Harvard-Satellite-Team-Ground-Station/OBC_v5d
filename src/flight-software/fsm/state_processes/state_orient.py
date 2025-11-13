@@ -23,6 +23,7 @@ class StateOrient:
         self.tx0 = tx0
         self.tx1 = tx1
         self.config = config
+        self.best_direction = -1
 
         self.face0_sensor = None
         self.face1_sensor = None
@@ -118,93 +119,71 @@ class StateOrient:
                     net_vec = self.vector_add(net_vec, v)
 
                 # step 5: determine all the directions from which to pull
-                # either right, left, north south or combinations of corners
-                inv_sqrt2 = 1 / math.sqrt(2)
-                point_vecs = [
-                    [1,0], [-1,0], [0,1], [0,-1],
-                    [inv_sqrt2, inv_sqrt2], [inv_sqrt2, -inv_sqrt2],
-                    [-inv_sqrt2, inv_sqrt2], [-inv_sqrt2, -inv_sqrt2]
-                ]
+                # either east, west, north, or south
+                point_vecs = [[1,0], [-1,0], [0,1], [0,-1]]
                 
                 # step 6: find best alginment
                 # find maximum dot product between net_vec and point_vecs
                 max_dot_product = -float('inf')
-                best_direction = 0
-                for i in range(8):
+                for i in range(4):
                     dot_product = sum([a * b for a, b in zip(net_vec, point_vecs[i])])
                     if dot_product > max_dot_product:
                         max_dot_product = dot_product
-                        best_direction = i
+                        if self.best_direction != -i:
+                            self.changed = True
+                        self.best_direction = i
+
 
                 # step 7: log the results
                 self.logger.info(f"Sun vector: {net_vec}")
-                self.logger.info(f"Best direction: {best_direction}, Alignment: {max_dot_product:.3f}")
+                self.logger.info(f"Best direction: {self.best_direction}, Alignment: {max_dot_product:.3f}")
                 
                 # activate the spring corresponding to best_direction
                 # TODO: Implement actual spring activation based on best_direction
                 # Direction mapping:
+                    # -1: none actuated
                     # 0: +X
                     # 1: -X
                     # 2: +Y
                     # 3: -Y
-                    # 4: +X+Y diagonal
-                    # 5: +X-Y diagonal  
-                    # 6: -X+Y diagonal
-                    # 7: -X-Y diagonal
-                if best_direction == -1:
-                        self.logger.info("No current through any springs")
-                        self.rx0.value = False
-                        self.rx1.value = False
-                        self.tx0.value = False
-                        self.tx1.value = False
-                if best_direction == 0:
-                        self.logger.info("Activating +X spring")
-                        self.rx0.value = True
-                        self.rx1.value = False
-                        self.tx0.value = False
-                        self.tx1.value = False
-                if best_direction == 1:
-                        self.logger.info("Activating -X spring")
-                        self.rx0.value = False
-                        self.rx1.value = True
-                        self.tx0.value = False
-                        self.tx1.value = False
-                if best_direction == 2:
-                        self.logger.info("Activating +Y spring")
-                        self.rx0.value = False
-                        self.rx1.value = False
-                        self.tx0.value = True
-                        self.tx1.value = False
-                if best_direction == 3:
-                        self.logger.info("Activating -Y spring")
-                        self.rx0.value = False
-                        self.rx1.value = False
-                        self.tx0.value = False
-                        self.tx1.value = True
-                if best_direction == 4:
-                        self.logger.info("Activating +X+Y diagonal spring")
-                        self.rx0.value = True
-                        self.rx1.value = False
-                        self.tx0.value = True
-                        self.tx1.value = False
-                if best_direction == 5:
-                        self.logger.info("Activating +X-Y diagonal spring")
-                        self.rx0.value = True
-                        self.rx1.value = False
-                        self.tx0.value = False
-                        self.tx1.value = True
-                if best_direction == 6:
-                        self.logger.info("Activating -X+Y diagonal spring")
-                        self.rx0.value = False
-                        self.rx1.value = True
-                        self.tx0.value = True
-                        self.tx1.value = False
-                if best_direction == 7:
-                        self.logger.info("Activating -X-Y diagonal spring")
-                        self.rx0.value = False
-                        self.rx1.value = False
-                        self.tx0.value = True
-                        self.tx1.value = True
+                if self.changed == True:
+                    self.logger.info("Turning off payload actuators, iving 2 seconds for spring to settle")
+                    self.rx0.value = False
+                    self.rx1.value = False
+                    self.tx0.value = False
+                    self.tx1.value = False
+                if self.best_direction == -1:
+                    self.logger.info("No current through any springs")
+                    self.rx0.value = False
+                    self.rx1.value = False
+                    self.tx0.value = False
+                    self.tx1.value = False
+                if self.best_direction == 0:
+                    self.logger.info("Activating +X spring")
+                    self.rx0.value = True
+                    self.rx1.value = False
+                    self.tx0.value = False
+                    self.tx1.value = False
+                if self.best_direction == 1:
+                    self.logger.info("Activating -X spring")
+                    self.rx0.value = False
+                    self.rx1.value = True
+                    self.tx0.value = False
+                    self.tx1.value = False
+                if self.best_direction == 2:
+                    self.logger.info("Activating +Y spring")
+                    self.rx0.value = False
+                    self.rx1.value = False
+                    self.tx0.value = True
+                    self.tx1.value = False
+                if self.best_direction == 3:
+                    self.logger.info("Activating -Y spring")
+                    self.rx0.value = False
+                    self.rx1.value = False
+                    self.tx0.value = False
+                    self.tx1.value = True
+                # set self.changed to False at the end
+                self.changed = False
 
     def stop(self):
         """
