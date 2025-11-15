@@ -1,23 +1,19 @@
-# SPDX-FileCopyrightText: 2019 Kattni Rembor for Adafruit Industries
-#
-# SPDX-License-Identifier: MIT
-
 """
-`adafruit_veml7700`
+`hucsat_veml6031x00`
 ================================================================================
 
-CircuitPython driver for VEML7700 high precision I2C ambient light sensor.
+CircuitPython driver for VEML6031X00 high precision I2C ambient light sensor.
 
 
-* Author(s): Kattni Rembor
+* Author(s): Christopher Prainito, Madison Davis
 
 Implementation Notes
 --------------------
 
 **Hardware:**
 
-* `Adafruit VEML7700 Lux Sensor - I2C Light Sensor
-  <https://www.adafruit.com/product/4162>`_ (Product ID: 4162)
+* `Vishay VEML6031X00 Lux Sensor - I2C Light Sensor
+  <https://www.vishay.com/en/product/80007/>`_
 
 **Software and Dependencies:**
 
@@ -43,49 +39,52 @@ try:
 except ImportError:
     pass
 
-__version__ = "2.0.2"
-__repo__ = "https://github.com/adafruit/Adafruit_CircuitPython_VEML7700.git"
+__version__ = "1.0.0"
+__repo__ = "https://github.com/Harvard-Satellite-Team-Ground-Station/OBC_v5d"
 
 
-class VEML7700:
-    """Driver for the VEML7700 ambient light sensor.
+class VEML6031X00:
+    """Driver for the VEML6031X00 ambient light sensor.
 
     :param ~busio.I2C i2c_bus: The I2C bus the device is connected to
-    :param int address: The I2C device address. Defaults to :const:`0x10`
+    :param int address: The I2C device address. Defaults to :const:`0x29`
 
     """
 
     # Ambient light sensor gain settings
     ALS_GAIN_1 = const(0x0)
     ALS_GAIN_2 = const(0x1)
-    ALS_GAIN_1_8 = const(0x2)
-    ALS_GAIN_1_4 = const(0x3)
+    ALS_GAIN_2_3 = const(0x2)
+    ALS_GAIN_1_2 = const(0x3)
 
     # Ambient light integration time settings
-
-    ALS_25MS = const(0xC)
-    ALS_50MS = const(0x8)
-    ALS_100MS = const(0x0)
-    ALS_200MS = const(0x1)
-    ALS_400MS = const(0x2)
-    ALS_800MS = const(0x3)
+    ALS_3_125MS = const(0x0)
+    ALS_6_25MS = const(0x1)
+    ALS_12_5MS = const(0x2)
+    ALS_25MS = const(0x3)
+    ALS_50MS = const(0x4)
+    ALS_100MS = const(0x5)
+    ALS_200MS = const(0x6)
+    ALS_400MS = const(0x7)
 
     # Gain value integers
     gain_values = {
         ALS_GAIN_2: 2,
         ALS_GAIN_1: 1,
-        ALS_GAIN_1_4: 0.25,
-        ALS_GAIN_1_8: 0.125,
+        ALS_GAIN_2_3: 0.66,
+        ALS_GAIN_1_2: 0.5,
     }
 
     # Integration time value integers
     integration_time_values = {
+        ALS_3_125MS: 3.125,
+        ALS_6_25MS: 6.25,
+        ALS_12_5MS: 12.5,
         ALS_25MS: 25,
         ALS_50MS: 50,
         ALS_100MS: 100,
         ALS_200MS: 200,
         ALS_400MS: 400,
-        ALS_800MS: 800,
     }
 
     # ALS - Ambient light sensor high resolution output data
@@ -98,13 +97,13 @@ class VEML7700:
 
         import time
         import board
-        import adafruit_veml7700
+        import hucsat_veml6031x00
 
         i2c = board.I2C()  # uses board.SCL and board.SDA
-        veml7700 = adafruit_veml7700.VEML7700(i2c)
+        veml6031 = hucsat_veml6031x00.VEML6031X00(i2c)
 
         while True:
-            print("Ambient light:", veml7700.light)
+            print("Ambient light:", veml6031.light)
             time.sleep(0.1)
     """
 
@@ -118,13 +117,13 @@ class VEML7700:
 
         import time
         import board
-        import adafruit_veml7700
+        import hucsat_veml6031x00
 
         i2c = board.I2C()  # uses board.SCL and board.SDA
-        veml7700 = adafruit_veml7700.VEML7700(i2c)
+        veml6031 = hucsat_veml6031x00.VEML6031X00(i2c)
 
         while True:
-            print("White light:", veml7700.white)
+            print("White light:", veml6031.white)
             time.sleep(0.1)
     """
 
@@ -132,8 +131,8 @@ class VEML7700:
     light_shutdown = RWBit(0x00, 0, register_width=2)
     """Ambient light sensor shutdown. When ``True``, ambient light sensor is disabled."""
     light_gain = RWBits(2, 0x00, 11, register_width=2)
-    """Ambient light gain setting. Gain settings are 2, 1, 1/4 and 1/8. Settings options are:
-    ALS_GAIN_2, ALS_GAIN_1, ALS_GAIN_1_4, ALS_GAIN_1_8.
+    """Ambient light gain setting. Gain settings are 2, 1, 2/3 and 1/2. Settings options are:
+    ALS_GAIN_2, ALS_GAIN_1, ALS_GAIN_2_3, ALS_GAIN_1_2.
 
     This example sets the ambient light gain to 2 and prints the ambient light sensor data.
 
@@ -141,21 +140,21 @@ class VEML7700:
 
         import time
         import board
-        import adafruit_veml7700
+        import hucsat_veml6031x00
 
         i2c = board.I2C()  # uses board.SCL and board.SDA
-        veml7700 = adafruit_vcnl4040.VCNL4040(i2c)
+        veml6031 = hucsat_veml6031x00.VEML6031X00(i2c)
 
-        veml7700.light_gain = veml7700.ALS_GAIN_2
+        veml6031.light_gain = veml6031.ALS_GAIN_2
 
         while True:
-            print("Ambient light:", veml7700.light)
+            print("Ambient light:", veml6031.light)
             time.sleep(0.1)
 
     """
     light_integration_time = RWBits(4, 0x00, 6, register_width=2)
     """Ambient light integration time setting. Longer time has higher sensitivity. Can be:
-    ALS_25MS, ALS_50MS, ALS_100MS, ALS_200MS, ALS_400MS, ALS_800MS.
+    ALS_3_125MS, ALS_6_25MS, ALS_12_5MS, ALS_25MS, ALS_50MS, ALS_100MS, ALS_200MS, ALS_400MS.
 
     This example sets the ambient light integration time to 400ms and prints the ambient light
     sensor data.
@@ -164,32 +163,32 @@ class VEML7700:
 
         import time
         import board
-        import adafruit_veml7700
+        import hucsat_veml6031x00
 
         i2c = board.I2C()  # uses board.SCL and board.SDA
-        veml7700 = adafruit_vcnl4040.VCNL4040(i2c)
+        veml6031 = hucsat_veml6031x00.VEML6031X00(i2c)
 
-        veml7700.light_integration_time = veml7700.ALS_400MS
+        veml6031.light_integration_time = veml6031.ALS_400MS
 
         while True:
-            print("Ambient light:", veml7700.light)
+            print("Ambient light:", veml6031.light)
             time.sleep(0.1)
 
     """
 
-    def __init__(self, i2c_bus: I2C, address: int = 0x10) -> None:
+    def __init__(self, i2c_bus: I2C, address: int = 0x29) -> None:
         self.i2c_device = i2cdevice.I2CDevice(i2c_bus, address)
         for _ in range(3):
             try:
                 # Set lowest gain to keep from overflow on init if bright light
-                self.light_gain = self.ALS_GAIN_1_8
+                self.light_gain = self.ALS_GAIN_1_2
                 #
                 self.light_shutdown = False  # Enable the ambient light sensor
                 break
             except OSError:
                 pass
         else:
-            raise RuntimeError("Unable to enable VEML7700 device")
+            raise RuntimeError("Unable to enable VEML6031X00 device")
 
     def integration_time_value(self) -> int:
         """Integration time value in integer form. Used for calculating :meth:`resolution`."""
@@ -204,9 +203,9 @@ class VEML7700:
     def resolution(self) -> float:
         """Calculate the :meth:`resolution`` necessary to calculate lux. Based on
         integration time and gain settings."""
-        resolution_at_max = 0.0036
+        resolution_at_max = 0.0034
         gain_max = 2
-        integration_time_max = 800
+        integration_time_max = 400
 
         if (
             self.gain_value() == gain_max
@@ -229,13 +228,61 @@ class VEML7700:
 
             import time
             import board
-            import adafruit_veml7700
+            import hucsat_veml6031x00
 
             i2c = board.I2C()  # uses board.SCL and board.SDA
-            veml7700 = adafruit_veml7700.VEML7700(i2c)
+            veml6031 = hucsat_veml6031x00.VEML6031X00(i2c)
 
             while True:
-                print("Lux:", veml7700.lux)
+                print("Lux:", veml6031.lux)
                 time.sleep(0.1)
         """
         return self.resolution() * self.light
+
+    @property
+    def autolux(self) -> float:
+        """Lux value with auto-gain and auto-integration time.
+        
+        This method automatically adjusts the gain and integration time to find
+        the optimal settings for the current lighting conditions, then returns
+        the lux value.
+        
+        Returns:
+            float: The calculated lux value with optimal settings.
+        """
+        # Store original settings
+        original_gain = self.light_gain
+        original_integration = self.light_integration_time
+        
+        # Test different gain and integration time combinations
+        # Start with highest sensitivity (gain 2, 400ms)
+        test_configs = [
+            (self.ALS_GAIN_2, self.ALS_400MS),
+            (self.ALS_GAIN_1, self.ALS_400MS),
+            (self.ALS_GAIN_2_3, self.ALS_200MS),
+            (self.ALS_GAIN_1_2, self.ALS_100MS),
+        ]
+        
+        best_lux = None
+        for gain, integration in test_configs:
+            self.light_gain = gain
+            self.light_integration_time = integration
+            # Small delay for sensor to settle
+            import time
+            time.sleep(0.05)
+            
+            # Check if reading is within valid range
+            reading = self.light
+            if 100 < reading < 60000:  # Avoid saturation and too low readings
+                best_lux = self.lux
+                break
+        
+        # If no good reading found, use the last configuration
+        if best_lux is None:
+            best_lux = self.lux
+        
+        # Restore original settings
+        self.light_gain = original_gain
+        self.light_integration_time = original_integration
+        
+        return best_lux

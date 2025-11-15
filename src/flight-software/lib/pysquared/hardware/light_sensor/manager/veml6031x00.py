@@ -1,5 +1,5 @@
-"""This module defines the `VEML7700Manager` class, which provides a high-level interface
-for interacting with the VEML7700 light sensor. It handles the initialization of the sensor
+"""This module defines the `VEML6031X00Manager` class, which provides a high-level interface
+for interacting with the VEML6031X00 light sensor. It handles the initialization of the sensor
 and provides methods for reading light levels in various formats.
 
 **Usage:**
@@ -7,7 +7,7 @@ and provides methods for reading light levels in various formats.
 logger = Logger()
 i2c = busio.I2C(board.SCL, board.SDA)
 i2c = initialize_i2c_bus(logger, board.SCL, board.SDA, 100000,)
-light_sensor = VEML7700Manager(logger, i2c)
+light_sensor = VEML6031X00Manager(logger, i2c)
 lux_data = light_sensor.get_lux()
 ```
 """
@@ -15,7 +15,7 @@ lux_data = light_sensor.get_lux()
 import time
 
 from adafruit_tca9548a import TCA9548A_Channel
-from adafruit_veml7700 import VEML7700
+from hucsat_veml6031x00 import VEML6031X00
 from busio import I2C
 
 from ....logger import Logger
@@ -34,28 +34,30 @@ except ImportError:
     pass
 
 
-class VEML7700Manager(LightSensorProto):
-    """Manages the VEML7700 ambient light sensor."""
+class VEML6031X00Manager(LightSensorProto):
+    """Manages the VEML6031X00 ambient light sensor."""
 
     def __init__(
         self,
         logger: Logger,
         i2c: I2C | TCA9548A_Channel,
-        integration_time: Literal[0, 1, 2, 3, 8, 12] = 12,
+        integration_time: Literal[0, 1, 2, 3, 4, 5, 6, 7] = 3,
     ) -> None:
-        """Initializes the VEML7700Manager.
+        """Initializes the VEML6031X00Manager.
 
         Args:
             logger: The logger to use.
             i2c: The I2C bus connected to the chip.
             integration_time: The integration time for the light sensor (default is 25ms).
                 Integration times can be one of the following:
-                - 12: 25ms
-                - 8: 50ms
-                - 0: 100ms
-                - 1: 200ms
-                - 2: 400ms
-                - 3: 800ms
+                - 0: 3.125ms
+                - 1: 6.25ms
+                - 2: 12.5ms
+                - 3: 25ms
+                - 4: 50ms
+                - 5: 100ms
+                - 6: 200ms
+                - 7: 400ms
 
         Raises:
             HardwareInitializationError: If the light sensor fails to initialize.
@@ -64,12 +66,12 @@ class VEML7700Manager(LightSensorProto):
         self._i2c: I2C | TCA9548A_Channel = i2c
 
         try:
-            self._log.debug("Initializing light sensor")
-            self._light_sensor: VEML7700 = VEML7700(i2c)
+            self._log.debug("Initializing light sensor (VEML6031X00)")
+            self._light_sensor: VEML6031X00 = VEML6031X00(i2c)
             self._light_sensor.light_integration_time = integration_time
         except Exception as e:
             raise HardwareInitializationError(
-                "Failed to initialize light sensor"
+                "Failed to initialize light sensor (VEML6031X00)"
             ) from e
 
     def get_light(self) -> Light:
@@ -145,6 +147,6 @@ class VEML7700Manager(LightSensorProto):
             self._light_sensor.light_shutdown = True
             time.sleep(0.1)  # Allow time for the sensor to reset
             self._light_sensor.light_shutdown = False
-            self._log.debug("Light sensor reset successfully")
+            self._log.debug("Light sensor (VEML6031X00) reset successfully")
         except Exception as e:
-            self._log.error("Failed to reset light sensor:", e)
+            self._log.error("Failed to reset light sensor (VEML6031X00):", e)

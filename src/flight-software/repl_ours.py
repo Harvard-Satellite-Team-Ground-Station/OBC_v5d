@@ -16,7 +16,7 @@ from lib.pysquared.hardware.burnwire.manager.burnwire import BurnwireManager
 from lib.pysquared.hardware.busio import _spi_init, initialize_i2c_bus
 from lib.pysquared.hardware.digitalio import initialize_pin
 from lib.pysquared.hardware.imu.manager.lsm6dsox import LSM6DSOXManager
-from lib.pysquared.hardware.light_sensor.manager.veml7700 import VEML7700Manager
+from lib.pysquared.hardware.light_sensor.manager.veml6031x00 import VEML6031X00Manager
 from lib.pysquared.hardware.load_switch.manager.loadswitch_manager import (
     LoadSwitchManager,
 )
