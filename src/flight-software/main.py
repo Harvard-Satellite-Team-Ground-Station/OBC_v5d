@@ -131,13 +131,6 @@ except Exception as e:
     # Jokes are non-critical, continue without them
 
 
-# +++++++++++++ LOITER TIME +++++++++++++ #
-loiter_time: int = 5
-for i in range(loiter_time):
-    logger.info(f"Code Starting in {loiter_time-i} seconds")
-    time.sleep(1)
-
-
 # +++++ HELPER FUNCTION: SAFE SLEEP +++++ #
 async def safe_sleep_async(
     duration: float,
@@ -177,6 +170,8 @@ async def main_async_loop():
         # ++++++++++++ INIT Watchdog ++++++++++++ #
         watchdog = Watchdog(logger, board.WDT_WDI)
 
+        watchdog.pet()
+
         # ++++++++++++ SLEEP 30 Minutes ++++++++++++ #
         # only sleep if not yet deployed OR if booted less than 3 times (as a cut-off)
         if (
@@ -184,8 +179,8 @@ async def main_async_loop():
             or boot_count.get() < config.sleep_if_yet_booted_count
         ):
             logger.info("[INFO] Sleeping for 30 minutes...")
-            for _ in range(120):
-                time.sleep(15)
+            for _ in range(180):
+                time.sleep(10)
                 watchdog.pet()
 
         # ++++++++++++ INIT SPI/I2C ++++++++++++ #
@@ -271,6 +266,7 @@ async def main_async_loop():
         except Exception as e:
             sband_radio = None
             logger.debug(f"[WARNING] SX1280Manager Failed to initialize: {e}")
+        watchdog.pet()
         try:
             uhf_radio = RFM9xManager(
                 logger,
@@ -285,6 +281,7 @@ async def main_async_loop():
             if except_reset_count.get() <= config.except_reset_allowed_attemps:
                 except_reset_count.increment()
                 time.sleep(config.watchdog_reset_sleep)
+        watchdog.pet()
         try:
             if uhf_radio is None:
                 raise ValueError("uhf_radio is None")
@@ -301,6 +298,7 @@ async def main_async_loop():
             if except_reset_count.get() <= config.except_reset_allowed_attemps:
                 except_reset_count.increment()
                 time.sleep(config.watchdog_reset_sleep)
+        watchdog.pet()
         time.sleep(5)
 
         # ++++++++++++ INIT BURNWIRE ++++++++++++ #
@@ -416,6 +414,7 @@ async def main_async_loop():
         except Exception as e:
             detumbler_manager = None
             logger.debug(f"[WARNING] DetumblerManager Failed to initialize: {e}")
+        watchdog.pet()
         try:
             magnetorquer_manager = MagnetorquerManager(
                 logger=logger,
@@ -429,11 +428,13 @@ async def main_async_loop():
         except Exception as e:
             magnetorquer_manager = None
             logger.debug(f"[WARNING] MagnetorquerManager Failed to initialize: {e}")
+        watchdog.pet()
         try:
             magnetometer = LIS2MDLManager(logger, i2c1)
         except Exception as e:
             magnetometer = None
             logger.debug(f"[WARNING] LIS2MDLManager Failed to initialize: {e}")
+        watchdog.pet()
         try:
             imu = LSM6DSOXManager(logger, i2c1, 0x6B)
         except Exception as e:
@@ -452,6 +453,7 @@ async def main_async_loop():
             if except_reset_count.get() <= config.except_reset_allowed_attemps:
                 except_reset_count.increment()
                 time.sleep(config.watchdog_reset_sleep)
+        watchdog.pet()
         time.sleep(5)
         watchdog.pet()
         try:
@@ -488,7 +490,9 @@ async def main_async_loop():
         try:
             if cdh:
                 try:
+                    watchdog.pet()
                     cdh.listen_for_commands(config.cdh_listen_command_timeout)
+                    watchdog.pet()
                 except Exception as e:
                     logger.debug(f"[WARNING] cdh failed to listen or respond: {e}")
             battery_power_monitor = INA219Manager(logger, i2c0, 0x40)
@@ -511,7 +515,9 @@ async def main_async_loop():
             imu=imu,
             battery_power_monitor=battery_power_monitor,
         )
+        watchdog.pet()
         dp_obj.start_run_all_data()
+        watchdog.pet()
 
         # Wait for sensor data to initialize before FSM starts
         logger.info("[INFO] Waiting for sensor data initialization...")
@@ -540,12 +546,14 @@ async def main_async_loop():
         if beacon:
             beacon._fsm_obj = fsm_obj
 
+        watchdog.pet()
+
         def nominal_power_loop():
             logger.debug(
                 "FC Board Stats",
                 bytes_remaining=gc.mem_free(),
             )
-
+            watchdog.pet()
             all_faces_on()
 
             try:
@@ -558,20 +566,26 @@ async def main_async_loop():
                     except_reset_count.increment()
                     time.sleep(config.watchdog_reset_sleep)
 
+            watchdog.pet()
+
             if beacon:
                 beacon.send_if_interval_elapsed()
 
             try:
                 if cdh:
+                    watchdog.pet()
                     cdh.listen_for_commands(
                         config.cdh_listen_command_timeout
                     ) if cdh is not None else None
+                    watchdog.pet()
             except Exception as e:
                 logger.debug(f"[WARNING] cdh failed to listen or respond: {e}")
                 # trigger Watchdog hard reset
                 if except_reset_count.get() <= config.except_reset_allowed_attemps:
                     except_reset_count.increment()
                     time.sleep(config.watchdog_reset_sleep)
+
+            watchdog.pet()
 
             try:
                 if uhf_packet_manager:
@@ -583,15 +597,19 @@ async def main_async_loop():
                     except_reset_count.increment()
                     time.sleep(config.watchdog_reset_sleep)
 
+            watchdog.pet()
+
             # Second beacon opportunity (interval still enforced)
             if beacon:
                 beacon.send_if_interval_elapsed()
 
             try:
                 if cdh:
+                    watchdog.pet()
                     cdh.listen_for_commands(
                         config.cdh_listen_command_timeout
                     ) if cdh is not None else None
+                    watchdog.pet()
             except Exception as e:
                 logger.debug(f"[WARNING] cdh failed to listen or respond: {e}")
                 # trigger Watchdog hard reset
@@ -606,6 +624,7 @@ async def main_async_loop():
             except_reset_count.set(0)
             logger.info("Exception reset counter cleared on successful boot")
             while True:
+                watchdog.pet()
                 val = fsm_obj.execute_fsm_step()
                 current_voltage = fsm_obj.dp_obj.data["data_batt_volt"]
 
