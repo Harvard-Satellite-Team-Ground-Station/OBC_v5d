@@ -54,6 +54,10 @@ class CommandDataHandler:
     command_change_cdh_listen_command_timeout: str = "cdh_listen_command_timeout"
     command_change_watchdog_reset_sleep: str = "watchdog_reset_sleep"
     command_change_except_reset_allowed_attemps: str = "except_reset_allowed_attemps"
+    command_patch_new: str = "patch_new"
+    command_patch_put: str = "patch_put"
+    command_patch_status: str = "patch_status"
+    command_patch_apply: str = "patch_apply"
 
     oscar_password: str = "Hello World!"  # Default password for OSCAR commands
 
@@ -78,6 +82,15 @@ class CommandDataHandler:
         self._jokes_config: JokesConfig = jokes_config
         self._packet_manager: PacketManager = packet_manager
         self._send_delay: float = send_delay
+        # Holds an in-progress software patch upload. RAM only, so a reboot
+        # safely aborts any partial upload. None when no upload is active.
+        # See patch_new, patch_put, patch_status, and patch_apply.
+        self._patch_session = None
+        # Bounds that keep a patch upload predictable on flight hardware: at most
+        # _patch_max_chunks chunks, each at most _patch_max_chunk_bytes decoded
+        # bytes, so peak RAM and apply time stay small.
+        self._patch_max_chunks: int = 128
+        self._patch_max_chunk_bytes: int = 256
 
     def listen_for_commands(self, timeout: int) -> None:
         """Listens for commands from the radio and handles them.
@@ -194,6 +207,14 @@ class CommandDataHandler:
                 self.change_except_reset_allowed_attemps(args)
             elif cmd == self.command_exec:
                 self.exec_command(args)
+            elif cmd == self.command_patch_new:
+                self.patch_new(args)
+            elif cmd == self.command_patch_put:
+                self.patch_put(args)
+            elif cmd == self.command_patch_status:
+                self.patch_status()
+            elif cmd == self.command_patch_apply:
+                self.patch_apply()
             elif cmd == self.command_reset:
                 self.reset()
             elif cmd == self.command_change_radio_modulation:
@@ -942,3 +963,187 @@ class CommandDataHandler:
             self._packet_manager.send(
                 f"Failed to execute code: {str(e)}".encode("utf-8")
             )
+
+    def _reply(self, msg: str) -> None:
+        """Sends a short text reply to the ground station."""
+        self._packet_manager.send(msg.encode("utf-8"))
+
+    def _md5_hex(self, data: bytes) -> str:
+        """MD5 hex digest, matching the ground station's FileValidationManager."""
+        import adafruit_hashlib
+
+        h = adafruit_hashlib.new("md5")
+        h.update(data)
+        return h.hexdigest()
+
+    def _remove_quiet(self, path: str) -> None:
+        """Removes a file if present, ignoring a missing file."""
+        import os
+
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+    def _format_missing(self, missing: list) -> str:
+        """Formats a missing-chunk list, capped so the downlink fits one packet."""
+        if len(missing) <= 24:
+            return str(missing)
+        return f"{missing[:24]} (+{len(missing) - 24} more)"
+
+    def patch_new(self, args: list[str]) -> None:
+        """Starts a patch upload: args = [target_path, total_chunks, expected_md5].
+
+        The ground station computes expected_md5 over the raw file bytes (binary)
+        and sends each chunk as base64 of a slice of those bytes. Calling this
+        again discards any in-progress upload.
+        """
+        if len(args) < 3:
+            return self._reply("patch_new needs: target_path total_chunks expected_md5")
+        target = str(args[0])
+        try:
+            total = int(args[1])
+        except (ValueError, TypeError):
+            return self._reply("patch_new: total_chunks must be an integer")
+        expected = str(args[2]).lower()
+        if target == "":
+            return self._reply("patch_new: target_path must not be empty")
+        if total < 1 or total > self._patch_max_chunks:
+            return self._reply(
+                f"patch_new: total_chunks must be 1..{self._patch_max_chunks}"
+            )
+        if len(expected) != 32 or any(c not in "0123456789abcdef" for c in expected):
+            return self._reply("patch_new: expected_md5 must be 32 hex characters")
+
+        previous = self._patch_session
+        self._patch_session = {
+            "target": target,
+            "total": total,
+            "expected": expected,
+            "chunks": {},
+        }
+        self._log.info("Patch session started", target=target, total=total)
+        note = ""
+        if previous is not None:
+            note = (
+                f" (discarded previous session, had "
+                f"{len(previous['chunks'])}/{previous['total']})"
+            )
+        self._reply(f"patch_new ok: {target} expecting {total} chunks{note}")
+
+    def patch_put(self, args: list[str]) -> None:
+        """Stores one base64 chunk: args = [index, base64_data]. Safe to resend."""
+        s = self._patch_session
+        if s is None:
+            return self._reply("patch_put: no active session, send patch_new first")
+        if len(args) < 2:
+            return self._reply("patch_put needs: index base64_data")
+        try:
+            idx = int(args[0])
+        except (ValueError, TypeError):
+            return self._reply("patch_put: index must be an integer")
+        if idx < 0 or idx >= s["total"]:
+            return self._reply(
+                f"patch_put: index {idx} out of range 0..{s['total'] - 1}"
+            )
+        try:
+            import binascii
+
+            chunk = binascii.a2b_base64(str(args[1]).encode("utf-8"))
+        except Exception as e:
+            return self._reply(f"patch_put: bad base64 for chunk {idx}: {e}")
+        if len(chunk) > self._patch_max_chunk_bytes:
+            return self._reply(
+                f"patch_put: chunk {idx} is {len(chunk)} bytes, max {self._patch_max_chunk_bytes}"
+            )
+        s["chunks"][idx] = chunk
+        self._reply(f"patch_put ok: chunk {idx}, have {len(s['chunks'])}/{s['total']}")
+
+    def patch_status(self) -> None:
+        """Reports which chunks are still missing."""
+        s = self._patch_session
+        if s is None:
+            return self._reply("patch_status: no active session")
+        missing = [i for i in range(s["total"]) if i not in s["chunks"]]
+        if not missing:
+            return self._reply(
+                f"patch_status: all {s['total']} chunks received, ready to apply"
+            )
+        self._reply(
+            f"patch_status: have {len(s['chunks'])}/{s['total']}, missing {self._format_missing(missing)}"
+        )
+
+    def patch_apply(self) -> None:
+        """Verifies all chunks vs the MD5 and writes them as a NEW file.
+
+        Refuses to overwrite an existing target: writes target.tmp, reads it back
+        to re-verify, then renames it into place only when the target does not
+        already exist (FAT flash has no atomic replace, so swapping over a live
+        file is a deliberate operator step). Does not execute or reboot.
+        """
+        s = self._patch_session
+        if s is None:
+            return self._reply("patch_apply: no active session")
+        missing = [i for i in range(s["total"]) if i not in s["chunks"]]
+        if missing:
+            return self._reply(
+                f"patch_apply: cannot apply, missing {self._format_missing(missing)}"
+            )
+
+        import os
+
+        target = s["target"]
+        tmp = target + ".tmp"
+        # Never overwrite a live file in place; staging a new file keeps a
+        # mid-write or mid-rename target from bricking the satellite at boot.
+        try:
+            os.stat(target)
+            return self._reply(
+                f"patch_apply: {target} already exists, choose a new path"
+            )
+        except OSError:
+            pass
+
+        content = b"".join(s["chunks"][i] for i in range(s["total"]))
+        size = len(content)
+        expected = s["expected"]
+        try:
+            actual = self._md5_hex(content)
+        except Exception as e:
+            return self._reply(f"patch_apply: hashing failed: {e}")
+        if actual != expected:
+            return self._reply(
+                f"patch_apply: md5 mismatch, got {actual} expected {expected} ({size} bytes)"
+            )
+
+        try:
+            with open(tmp, "wb") as f:
+                f.write(content)
+        except OSError as e:
+            self._remove_quiet(tmp)
+            return self._reply(
+                f"patch_apply: write failed (filesystem read only?): {e}"
+            )
+
+        del content  # bound peak RAM to about one copy of the patch
+
+        # Re-verify from disk so the target is only ever promoted from good bytes.
+        try:
+            with open(tmp, "rb") as f:
+                disk_ok = self._md5_hex(f.read()) == expected
+        except OSError as e:
+            self._remove_quiet(tmp)
+            return self._reply(f"patch_apply: readback failed, target not written: {e}")
+        if not disk_ok:
+            self._remove_quiet(tmp)
+            return self._reply("patch_apply: on disk verify failed, target not written")
+
+        try:
+            os.rename(tmp, target)
+        except OSError as e:
+            self._remove_quiet(tmp)
+            return self._reply(f"patch_apply: rename failed, target not written: {e}")
+
+        self._patch_session = None
+        self._log.info("Patch applied", target=target, size=size)
+        self._reply(f"patch_apply ok: wrote {size} bytes to {target}")
