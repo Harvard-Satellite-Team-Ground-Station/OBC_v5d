@@ -11,6 +11,7 @@ from lib.proveskit_rp2350_v5b.register import Register
 from lib.pysquared.hardware.digitalio import initialize_pin
 from lib.pysquared.hardware.radio.manager.rfm9x import RFM9xManager
 from lib.pysquared.hardware.radio.packetizer.packet_manager import PacketManager
+import uplink
 
 
 # +++++++++++++ INITIALIZATIONS +++++++++++++ #
@@ -79,24 +80,46 @@ uhf_packet_manager = PacketManager(
 
 # +++++++++++++ FUNCTIONS +++++++++++++ #
 def send_command(password: str, command: str,  args: list[str] = []):
-    # Build message struct
-    msg = {
-        "name"      : config.cubesat_name,  # satellite name
-        "command"   : command,
-        "args"      : args,
-        "password"  : password
-    }
-
-    # Serialize message and send
-    msg_bytes = json.dumps(msg).encode("utf-8")
-    uhf_packet_manager.send(msg_bytes)
-    return msg_bytes
+    # Build the message, send it, and wait for the satellite's reply.
+    msg_bytes = uplink.build_msg(config, password, command, args)
+    resp = uplink.send_and_receive(uhf_packet_manager, msg_bytes)
+    if resp is None:
+        print("  [satellite]: no response (not received, or out of range)")
+    else:
+        print("  [satellite]:", uplink._show(resp))
+    return resp
 
 def process_input(user_input: str) -> tuple[bool, str]:
     # grab relevant parts of command, validate, then send to send_command
 
     # Step 0: get user input
     parts = user_input.strip().split()
+
+    if not parts:
+        return False, "[ERROR] Empty input."
+
+    # Ground-side orchestration commands (not single satellite commands).
+    # patch:  reliable, resumable file upload via the patch_* commands.
+    # blast:  one-time bootstrap that writes a file using exec, for installing
+    #         the patch commands before they exist on the satellite.
+    action = parts[0].lower()
+    if action in ("patch", "blast"):
+        if len(parts) != 4:
+            return False, f"[ERROR] usage: {action} <password> <localfile> <remotepath>"
+        confirm = input(
+            f"Type 'yes' to {action} {parts[2]} -> {parts[3]}: "
+        ).strip().lower()
+        if confirm != "yes":
+            return False, "[CANCELLED] Not sent."
+        if action == "patch":
+            ok = uplink.upload_patch(
+                uhf_packet_manager, config, logger, parts[1], parts[2], parts[3]
+            )
+        else:
+            ok = uplink.blast_file(
+                uhf_packet_manager, config, logger, parts[1], parts[2], parts[3]
+            )
+        return ok, f"[{'SUCCESS' if ok else 'FAILED'}] {action} {parts[2]}"
 
     # Step 1: verify at least 3 entries before strip.
     if len(parts) <= 2:
@@ -126,9 +149,11 @@ def process_input(user_input: str) -> tuple[bool, str]:
     if confirm != "yes":
         return False, "[CANCELLED] Command not sent."
 
-    # Step 5: actually send
-    msg_bytes = send_command(password, command, args)
-    return True, f"[SUCCESS] Sent: {msg_bytes}"
+    # Step 5: send, and report based on whether the satellite actually replied
+    resp = send_command(password, command, args)
+    if resp is None:
+        return False, f"[NO REPLY] '{command}' sent, no response from satellite"
+    return True, f"[OK] '{command}' acknowledged"
 
 
 # +++++++++++++ INTERACTIVE LOOP +++++++++++++ #

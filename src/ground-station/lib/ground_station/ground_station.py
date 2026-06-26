@@ -104,7 +104,13 @@ class GroundStation:
             )
             self._packet_manager.send(json.dumps(message).encode("utf-8"))
 
-            # Listen for ACK response
+            # Listen for ACK responseghjk
+
+            \
+
+
+
+            
             b = self._packet_manager.listen(1)
             if b is None:
                 self._log.info("No response received, retrying...")
